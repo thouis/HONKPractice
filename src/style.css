@@ -1,0 +1,84 @@
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: 14px/1.4 system-ui, sans-serif;
+  background: #f5f5f0;
+  color: #1a1a2e;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+}
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #1a1a2e;
+  color: #fff;
+}
+.app-title { font-weight: bold; font-size: 16px; }
+.score-title { flex: 1; text-align: center; opacity: 0.8; font-size: 13px; }
+
+/* Controls bar */
+.controls-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: #eeeee8;
+  border-bottom: 1px solid #ccc;
+}
+
+.btn {
+  padding: 4px 10px;
+  border: 1px solid #999;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 13px;
+}
+.btn:hover { background: #e8e8e0; }
+.btn-active { background: #1a1a2e; color: #fff; border-color: #1a1a2e; }
+.btn-active:hover { background: #2a2a4e; }
+
+#bpm-display { font-size: 13px; min-width: 60px; }
+
+/* Beat indicator */
+.beat-indicator {
+  height: 4px;
+  background: #1a1a2e;
+  transition: background 0.05s;
+}
+.beat-flash { background: #e85d04 !important; }
+
+/* Score panel */
+.score-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  padding: 16px;
+}
+
+#osmd-container {
+  position: relative;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Hint labels injected by positionAdvisor */
+.hint-label {
+  font-family: monospace;
+  font-size: 10px;
+  color: #1a1a2e;
+  font-weight: bold;
+  pointer-events: none;
+  white-space: nowrap;
+}

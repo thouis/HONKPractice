@@ -1,0 +1,173 @@
+TrombonePractice
+Open-Source Trombone Practice Web Application
+Design Document — Version 0.1  |  April 2026
+
+
+1. Overview
+TrombonePractice is a free, open-source web application that helps trombone players of all levels practise from MusicXML scores. It combines score playback, real-time pitch detection, adjustable tempo, a metronome, and optional position/partial hints into a single browser-based tool that requires no account and stores all data locally.
+The primary score library focus is jazz and big band repertoire, using the MusicXML open format. Support for additional formats (ABC Notation, etc.) is planned for future versions.
+
+2. Goals and Non-Goals
+2.1 Goals
+Load and render MusicXML trombone parts in the browser
+Play back scores using MIDI synthesis (no external dependencies)
+Display real-time pitch detection as a colour-coded scrolling graph overlaid on the score
+Allow tempo adjustment from ~30% to 150% of written tempo
+Provide a visual/audible metronome with time-signature awareness
+Optionally display slide position and partial hints above each note
+Compute optimal slide position sequences that minimise total slide travel
+Run entirely in the browser; all data stored in localStorage — no accounts, no server
+Ship as a Progressive Web App (PWA) for offline use and future mobile support
+Be fully open source (MIT licence)
+
+2.2 Non-Goals (v1)
+Photo / image recognition of printed scores (open format library approach instead)
+Full-score multi-part display (trombone part only)
+Cloud sync, user accounts, or teacher dashboards
+Audio recording or export
+iOS/Android native apps (web-first; mobile browser support via PWA)
+Support for instruments other than trombone
+
+3. Architecture
+3.1 Technology Stack
+
+
+3.2 Module Breakdown
+The application is divided into six main modules:
+
+
+
+4. Feature Specifications
+4.1 Score Loading
+Users upload a MusicXML (.xml or .mxl) file from their device, or select one from the built-in library browser
+The app extracts the trombone/tenor trombone part automatically; if ambiguous, the user picks from a dropdown
+Parsed score is cached in localStorage so the file does not need to be re-uploaded
+Library browser: searchable by title, composer, style (jazz, classical, etc.) and difficulty
+
+4.2 Score Display
+Score rendered as SVG using OpenSheetMusicDisplay in a scrollable viewport
+Current note highlighted with a coloured cursor box as playback progresses
+Pitch overlay drawn on a transparent canvas layer on top of the SVG
+On mobile, score pans horizontally to follow the cursor (future phase)
+
+4.3 Playback
+Play / Pause / Stop controls; click anywhere on the score to reposition
+MIDI synthesis using a trombone soundfont patch via Tone.js
+Tempo slider: 30% to 150% of written tempo, displayed as BPM
+Count-in option: 1 or 2 bars of metronome clicks before playback starts
+Loop: user marks a start and end bar; playback loops that range
+
+4.4 Metronome
+Always synced to the current tempo and time signature of the score
+Audible click: distinct downbeat and subdivision sounds
+Visual flash on the beat indicator
+Can be toggled on/off independently of playback
+Subdivision options: quarter, eighth, eighth triplet, sixteenth
+
+4.5 Pitch Detection and Intonation Graph
+Microphone access requested on first use (permission prompt with clear explanation)
+Pitch detected using the McLeod Pitch Method (pitchy library) at ~60 fps
+Graph rendered as a scrolling line on a canvas overlay positioned above the staff
+Target pitch line: a horizontal guide showing the exact frequency of the current written note
+Played pitch line: the detected pitch, coloured continuously by deviation:
+Green: within ±10 cents
+Yellow: 11–25 cents sharp or flat
+Red: >25 cents sharp or flat
+Y-axis labelled in cents (–50 to +50); X-axis scrolls with score time
+Graph pauses when no pitch is detected (between notes / rests)
+After a run-through, a summary panel shows mean intonation error per note
+
+4.6 Position and Partial Hints
+Shown as compact text labels above each note head, e.g.  “3 / P4”  (position 3, 4th partial)
+Toggle on/off with a single button; off by default
+For each note, all valid (position, partial) pairs are computed
+The sequence displayed uses a greedy minimum-travel algorithm: each position is chosen to minimise the absolute change from the previous position (see §5)
+Alternate positions shown on hover/tap in a small popover, e.g.  “Alt: 1/P6, 6/P3”
+Trigger notes (Bb/B♮ in 1st position via trigger) indicated with a ‘T’ flag on instruments that have one; toggle-able
+Display is tempo-independent — hints remain visible even when playback is stopped
+
+5. Position Advisor Algorithm
+5.1 Note-to-Position Mapping
+The trombone slide has 7 positions. Each partial (harmonic) of the instrument’s natural series is available at each position, producing a fixed set of pitches. The mapping below covers the practical range (pedal Bb1 through F5):
+
+
+* denotes notes reachable at that partial/position but with poorer intonation — flagged as ‘alternate’ in the UI.
+
+5.2 Minimum-Travel Sequence
+Given a sequence of notes n₁, n₂ … n_k, each with a set of valid positions P(n_i), the algorithm selects one position per note to minimise total slide travel:
+Model: dynamic programming over the note sequence
+State: (note index, chosen position)
+Cost: |pos_i − pos_{i−1}|  (positions 1–7, integer)
+Transition: for each valid position at step i, compute cumulative cost from all valid positions at step i−1
+Complexity: O(k × 7²) — negligible for any real piece
+Ties broken by preferring lower position numbers (shorter slide = better intonation tendency)
+Re-computed whenever the score loads or the user changes a position manually
+
+5.3 Edge Cases
+Notes outside the playable range are flagged in red; no position shown
+Enharmonic equivalents (e.g. Db = C#) resolved to the standard trombone spelling before lookup
+Glissandi and grace notes: positions shown for the written target note only
+Trigger Bb/B-natural: displayed as “1T” or “2T” when trigger is enabled in settings
+
+6. Score Library
+The library is a community-contributed collection of MusicXML trombone parts, hosted as static files on GitHub Pages. A JSON index file (library.json) lists all available scores with metadata.
+
+6.1 Index Schema
+Each entry in library.json contains:
+
+
+6.2 Contribution
+Contributors submit MusicXML files via GitHub pull request
+Only scores that are public domain or under a compatible open licence are accepted
+The app can also load any locally-uploaded MusicXML file independently of the library
+
+7. User Interface Layout
+The interface is divided into three horizontal zones:
+
+7.1 Top Bar
+App name / logo (left)
+Score title and part name (centre)
+Load score button, library button, settings icon (right)
+
+7.2 Controls Bar (below top bar)
+Transport: ⏮ Rewind  |  ▶ Play/Pause  |  ⏹ Stop
+Tempo: BPM readout + slider (30%–150%)
+Metronome: toggle button + subdivision selector
+Loop: set loop start / end bar buttons
+Hints: toggle position/partial display on/off
+Mic: toggle pitch detection on/off (shows permission status)
+
+7.3 Main Panel
+Score viewport: full-width, vertically scrollable
+Pitch overlay canvas: transparent layer above the top staff line, scrolls with score
+Position/partial labels: rendered in the SVG layer above note heads (when hints on)
+Beat indicator strip: thin coloured bar at top flashes on each beat
+
+7.4 Summary Panel (post-practice)
+Appears after playback completes (or on demand)
+Bar chart: mean intonation error (cents) per bar
+Table: notes with worst average intonation, flagged for review
+Dismiss button returns to score view
+
+8. Data and Privacy
+No data leaves the user’s device. The app makes no network requests except to load scores from the public library CDN.
+Microphone audio is processed in-browser only; raw audio is never stored or transmitted.
+Computed pitch data and practice history are stored in localStorage and can be cleared from the settings panel.
+The app declares microphone permission in its Web App Manifest and explains its use before requesting access.
+
+9. PWA and Mobile Considerations
+Service worker caches app shell, soundfont, and recently loaded scores for offline use
+Web App Manifest enables ‘Add to Home Screen’ on iOS and Android
+Touch targets sized to minimum 44×44 px; controls bar stacks vertically on narrow screens
+AudioContext and microphone access work in Safari iOS 15+ (tested target)
+Score panning on mobile (Phase 2): auto-scroll to follow cursor rather than full-page scroll
+
+10. Suggested Build Milestones
+
+
+11. Open Questions
+Should the intonation graph Y-axis scale be fixed (±50 cents) or auto-scaled to the session’s actual range?
+What is the preferred soundfont licence for the trombone patch? (MuseScore’s SF3 or a separate permissive source)
+Should difficulty ratings in the library be community-voted or editorially assigned?
+Trigger trombone: should this be a per-user setting or per-score metadata?
+Alto trombone support in the position table — include in v1 or defer?
