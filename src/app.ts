@@ -1,16 +1,20 @@
 import { createToolbar, setScoreTitle } from './ui/toolbar'
-import { createControls, updateBpmDisplay, setPlayPauseIcon, type HintsMode } from './ui/controls'
-import { createScorePanel, getOsmdContainer, getBeatIndicator } from './ui/scorePanel'
+import { createControls, updateBpmDisplay, setPlayPauseIcon, resetLoopControl, type HintsMode, type VoiceMode } from './ui/controls'
+import { createScorePanel, getOsmdContainer, getBeatIndicator, setRangeIndicator, clearRangeIndicator } from './ui/scorePanel'
 import { openFilePicker } from './modules/scoreLoader'
-import { initDisplay, loadAndRender, getOsmd, resetCursor, advanceCursor } from './modules/scoreDisplay'
+import { initDisplay, loadAndRender, getOsmd, resetCursor, advanceCursor,
+         getMeasureCount, renderRange } from './modules/scoreDisplay'
 import { initSampler, buildTimeline, play, pause, stop, setTempoRatio,
-         getWrittenBpm, getTempoRatio, getTransportState, onCursorAdvance } from './modules/playback'
-import { initMetronome, setMetronomeEnabled, startMetronome, stopMetronome } from './modules/metronome'
+         getWrittenBpm, getTempoRatio, getTransportState, onCursorAdvance,
+         setLoopEnabled, setLoopRestEnabled, setVoiceMode, setMusicVolume } from './modules/playback'
+import { initMetronome, setMetronomeEnabled, startMetronome, stopMetronome, setMetronomeVolume } from './modules/metronome'
 import { computeAndRenderHints } from './modules/positionAdvisor'
 import { startPitchDetection, stopPitchDetection, setExpectedPitch,
-         setPitchMeterAnchor, setPitchMeterThreshold } from './modules/pitchDetector'
+         setPitchMeterAnchor, setPitchMeterThreshold, setPitchSensitivity } from './modules/pitchDetector'
 import { startPracticeMode, stopPracticeMode, setPracticeExpectedPitch, setPracticeThreshold } from './modules/practiceMode'
-import { saveScore, loadScore, saveSettings, loadSettings } from './modules/storage'
+import { saveScore, loadScore, saveSettings, loadSettings, saveScoreLoop, loadScoreLoop } from './modules/storage'
+import { initLibraryPanel, openLibraryPanel } from './ui/libraryPanel'
+import { initSettingsPanel, openSettingsPanel } from './ui/settingsPanel'
 import { DEFAULT_SCORE_XML } from './data/defaultScore'
 
 let hintsMode: HintsMode = 0
@@ -18,6 +22,9 @@ let metronomeOn = false
 let scoreLoaded = false
 let micOn = false
 let practiceOn = false
+let loopOn = false
+let currentVoice: VoiceMode = 'all'
+let currentXml = ''   // for per-score loop memory
 
 // Module-level so handleStop can reset it without closure issues.
 let cursorIdx = 0
@@ -29,7 +36,12 @@ export async function initApp(root: HTMLElement): Promise<void> {
   metronomeOn = (settings.metronomeOn as boolean) ?? false
 
   // --- Build DOM ---
-  const toolbar = createToolbar(handleLoadScore)
+  initSettingsPanel({
+    onMusicVolume:     setMusicVolume,
+    onMetronomeVolume: setMetronomeVolume,
+    onPitchSensitivity: setPitchSensitivity,
+  })
+  const toolbar = createToolbar(handleLoadScore, openLibraryPanel, openSettingsPanel)
   const scorePanel = createScorePanel()
   const controls = createControls({
     onPlayPause: handlePlayPause,
@@ -40,11 +52,18 @@ export async function initApp(root: HTMLElement): Promise<void> {
     onMicToggle: handleMicToggle,
     onPracticeToggle: handlePracticeToggle,
     onPracticeThresholdChange: handlePracticeThresholdChange,
+    onLoopChange: handleLoopChange,
+    onLoopRestChange: setLoopRestEnabled,
+    onVoiceChange: handleVoiceChange,
   })
 
   root.append(toolbar, controls, scorePanel)
 
   // --- Init subsystems ---
+  await initLibraryPanel(async (xml, title) => {
+    await renderScore(xml, title)
+    saveScore(xml)
+  })
   await initDisplay(getOsmdContainer())
   initMetronome(getBeatIndicator())
 
@@ -57,6 +76,11 @@ export async function initApp(root: HTMLElement): Promise<void> {
     if (practiceOn) return
     const osmd = getOsmd()
     if (!osmd) return
+    // Transport loop wrap: idx jumped backward → reset cursor to loop start.
+    if (loopOn && idx < cursorIdx) {
+      resetCursor()
+      cursorIdx = 0
+    }
     while (cursorIdx < idx) {
       advanceCursor()
       cursorIdx++
@@ -95,8 +119,34 @@ async function renderScore(xml: string, titleHint: string): Promise<void> {
   const osmd = getOsmd()
   if (!osmd) return
 
+  currentXml = xml
   scoreLoaded = true
-  cursorIdx = 0  // reset cursor tracking index for new score
+  cursorIdx = 0
+  const total = getMeasureCount()
+
+  // Restore saved loop range for this score, or reset to full score.
+  const savedLoop = loadScoreLoop(xml)
+  if (savedLoop) {
+    loopOn = savedLoop.enabled
+    const from = Math.max(1, savedLoop.from)
+    const to   = Math.min(savedLoop.to, total)
+    resetLoopControl(total)
+    if (loopOn) {
+      // re-apply range selector and indicators — handleLoopChange does this,
+      // but we need to skip saving again; call it directly.
+      renderRange(from, to)
+      setLoopEnabled(true)
+      setRangeIndicator(from, to, total)
+    } else {
+      clearRangeIndicator()
+    }
+  } else {
+    loopOn = false
+    setLoopEnabled(false)
+    resetLoopControl(total)
+    clearRangeIndicator()
+  }
+
   buildTimeline(osmd)
   updateBpmDisplay(getWrittenBpm() * getTempoRatio())
 
@@ -164,15 +214,21 @@ function handleHintsChange(mode: HintsMode): void {
   saveSettings({ tempoRatio: getTempoRatio(), hintsMode: mode, metronomeOn })
 }
 
-// Returns Hz of the LOWEST pitched note under cursor, or 0.
+// Returns Hz of the selected voice note under cursor, or 0.
 function currentNoteHz(): number {
   const osmd = getOsmd()
   if (!osmd) return 0
   const notes = osmd.cursor.NotesUnderCursor()
   const pitched = (notes ?? []).filter((n: any) => !n.isRest?.())
   if (pitched.length === 0) return 0
-  const lowestMidi = Math.min(...pitched.map((n: any) => n.halfTone + 12))
-  return 440 * Math.pow(2, (lowestMidi - 69) / 12)
+  const asc = pitched.map((n: any) => n.halfTone + 12).sort((a: number, b: number) => a - b)
+  let midi: number
+  switch (currentVoice) {
+    case 'highest': midi = asc[asc.length - 1]; break
+    case 'middle':  midi = asc[Math.floor((asc.length - 1) / 2)]; break
+    default:        midi = asc[0]; break  // 'lowest' and 'all' both reference lowest for pitch
+  }
+  return 440 * Math.pow(2, (midi - 69) / 12)
 }
 
 // Reposition the pitch meter to the right of the current OSMD cursor element.
@@ -232,6 +288,40 @@ function handlePracticeThresholdChange(cents: number): void {
   setPitchMeterThreshold(cents)
 }
 
+async function handleLoopChange(enabled: boolean, from: number, to: number): Promise<void> {
+  loopOn = enabled
+  stop()
+  stopMetronome()
+  setPlayPauseIcon(false)
+
+  const osmd = getOsmd()
+  if (!osmd) return
+  const total = getMeasureCount()
+  const clampedFrom = Math.max(1, from)
+  const clampedTo   = Math.min(to, total)
+
+  if (enabled) {
+    renderRange(clampedFrom, clampedTo)
+    setRangeIndicator(clampedFrom, clampedTo, total)
+  } else {
+    renderRange(1, total)
+    clearRangeIndicator()
+  }
+  cursorIdx = 0
+  setLoopEnabled(enabled)
+  buildTimeline(osmd)
+  computeAndRenderHints(osmd, getOsmdContainer(), hintsMode)
+  updateExpectedPitch()
+
+  if (currentXml) saveScoreLoop(currentXml, { enabled, from: clampedFrom, to: clampedTo })
+}
+
+function handleVoiceChange(mode: VoiceMode): void {
+  currentVoice = mode
+  setVoiceMode(mode)
+  updateExpectedPitch()
+}
+
 async function handlePracticeToggle(on: boolean): Promise<void> {
   practiceOn = on
   if (on) {
@@ -262,16 +352,25 @@ async function handlePracticeToggle(on: boolean): Promise<void> {
 
 function practiceAdvance(): void {
   const osmd = getOsmd()
-  if (!osmd || osmd.cursor.iterator.EndReached) return
+  if (!osmd) return
+
+  if (osmd.cursor.iterator.EndReached) {
+    if (loopOn) { resetCursor(); cursorIdx = 0; updateExpectedPitch() }
+    return
+  }
+
   advanceCursor()
   cursorIdx++
-  // Skip rests automatically (they don't require pitch input).
+  // Skip rests automatically.
   while (!osmd.cursor.iterator.EndReached) {
     const notes = osmd.cursor.NotesUnderCursor()
-    const hasRealNote = (notes ?? []).some((n: any) => !n.isRest?.())
-    if (hasRealNote) break
+    if ((notes ?? []).some((n: any) => !n.isRest?.())) break
     advanceCursor()
     cursorIdx++
+  }
+  // If we hit the end during rest-skipping, loop.
+  if (osmd.cursor.iterator.EndReached && loopOn) {
+    resetCursor(); cursorIdx = 0
   }
   updateExpectedPitch()
 }

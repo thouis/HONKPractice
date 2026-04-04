@@ -1,4 +1,8 @@
-export function createToolbar(onLoad: () => void): HTMLElement {
+export function createToolbar(
+  onLoad: () => void,
+  onLibrary: () => void,
+  onSettings: () => void,
+): HTMLElement {
   const bar = document.createElement('div')
   bar.className = 'toolbar'
 
@@ -11,12 +15,23 @@ export function createToolbar(onLoad: () => void): HTMLElement {
   scoreTitle.id = 'score-title'
   scoreTitle.textContent = 'No score loaded'
 
+  const libraryBtn = document.createElement('button')
+  libraryBtn.textContent = 'Library'
+  libraryBtn.className = 'btn'
+  libraryBtn.onclick = onLibrary
+
   const loadBtn = document.createElement('button')
-  loadBtn.textContent = 'Load Score'
+  loadBtn.textContent = 'Load File'
   loadBtn.className = 'btn'
   loadBtn.onclick = onLoad
 
-  bar.append(title, scoreTitle, loadBtn)
+  const settingsBtn = document.createElement('button')
+  settingsBtn.textContent = '⚙'
+  settingsBtn.className = 'btn'
+  settingsBtn.title = 'Settings'
+  settingsBtn.onclick = onSettings
+
+  bar.append(title, scoreTitle, libraryBtn, loadBtn, settingsBtn)
   return bar
 }
 

@@ -1,5 +1,7 @@
 export type HintsMode = 0 | 1 | 2  // 0=off, 1=position, 2=position+partial
 
+export type VoiceMode = 'all' | 'lowest' | 'middle' | 'highest'
+
 export interface ControlCallbacks {
   onPlayPause: () => void
   onStop: () => void
@@ -9,6 +11,9 @@ export interface ControlCallbacks {
   onMicToggle: (on: boolean) => void
   onPracticeToggle: (on: boolean) => void
   onPracticeThresholdChange: (cents: number) => void
+  onLoopChange: (enabled: boolean, from: number, to: number) => void
+  onLoopRestChange: (enabled: boolean) => void
+  onVoiceChange: (mode: VoiceMode) => void
 }
 
 let bpmDisplay: HTMLSpanElement
@@ -18,6 +23,10 @@ let metBtn: HTMLButtonElement
 let hintsBtn: HTMLButtonElement
 let micBtn: HTMLButtonElement
 let practiceBtn: HTMLButtonElement
+let loopBtn: HTMLButtonElement
+let loopFromInput: HTMLInputElement
+let loopToInput: HTMLInputElement
+let loopRangeEls: HTMLElement[]
 
 export function createControls(cbs: ControlCallbacks): HTMLElement {
   const bar = document.createElement('div')
@@ -125,8 +134,87 @@ export function createControls(cbs: ControlCallbacks): HTMLElement {
     cbs.onPracticeThresholdChange(parseInt(thresholdInput.value) || 20)
   }
 
+  // --- Loop ---
+  loopBtn = document.createElement('button')
+  loopBtn.textContent = 'Loop: OFF'
+  loopBtn.className = 'btn'
+  let loopOn = false
+
+  loopFromInput = document.createElement('input')
+  loopFromInput.type = 'number'
+  loopFromInput.min = '1'
+  loopFromInput.max = '999'
+  loopFromInput.value = '1'
+  loopFromInput.style.cssText = 'width:44px;display:none;'
+  loopFromInput.title = 'Loop from bar'
+
+  const loopSep = document.createElement('span')
+  loopSep.textContent = '–'
+  loopSep.style.display = 'none'
+
+  loopToInput = document.createElement('input')
+  loopToInput.type = 'number'
+  loopToInput.min = '1'
+  loopToInput.max = '999'
+  loopToInput.value = '999'
+  loopToInput.style.cssText = 'width:44px;display:none;'
+  loopToInput.title = 'Loop to bar'
+
+  const loopRestBtn = document.createElement('button')
+  loopRestBtn.textContent = 'Rest: ON'
+  loopRestBtn.className = 'btn btn-active'
+  loopRestBtn.style.cssText = 'display:none;font-size:0.8rem;'
+  loopRestBtn.title = 'Insert one bar of silence between repeats'
+  let loopRestOn = true
+  loopRestBtn.onclick = () => {
+    loopRestOn = !loopRestOn
+    loopRestBtn.textContent = `Rest: ${loopRestOn ? 'ON' : 'OFF'}`
+    loopRestBtn.classList.toggle('btn-active', loopRestOn)
+    cbs.onLoopRestChange(loopRestOn)
+  }
+
+  loopRangeEls = [loopFromInput, loopSep, loopToInput, loopRestBtn]
+
+  const fireLoop = () => {
+    if (!loopOn) return
+    const from = Math.max(1, parseInt(loopFromInput.value) || 1)
+    const to   = Math.max(from, parseInt(loopToInput.value) || from)
+    loopToInput.value = String(to)
+    cbs.onLoopChange(true, from, to)
+  }
+
+  loopBtn.onclick = () => {
+    loopOn = !loopOn
+    loopBtn.textContent = `Loop: ${loopOn ? 'ON' : 'OFF'}`
+    loopBtn.classList.toggle('btn-active', loopOn)
+    loopRangeEls.forEach(el => el.style.display = loopOn ? '' : 'none')
+    const from = parseInt(loopFromInput.value) || 1
+    const to   = parseInt(loopToInput.value) || 1
+    cbs.onLoopChange(loopOn, from, to)
+  }
+  loopFromInput.onchange = fireLoop
+  loopToInput.onchange   = fireLoop
+
+  // --- Voice selector ---
+  const VOICE_LABELS: Record<VoiceMode, string> = {
+    all: 'Voice: All', lowest: 'Voice: Low', middle: 'Voice: Mid', highest: 'Voice: High',
+  }
+  const VOICE_CYCLE: VoiceMode[] = ['all', 'lowest', 'middle', 'highest']
+  let voiceIdx = 0
+  const voiceBtn = document.createElement('button')
+  voiceBtn.textContent = VOICE_LABELS['all']
+  voiceBtn.className = 'btn'
+  voiceBtn.onclick = () => {
+    voiceIdx = (voiceIdx + 1) % VOICE_CYCLE.length
+    const mode = VOICE_CYCLE[voiceIdx]
+    voiceBtn.textContent = VOICE_LABELS[mode]
+    voiceBtn.classList.toggle('btn-active', mode !== 'all')
+    cbs.onVoiceChange(mode)
+  }
+
   bar.append(rewindBtn, playPauseBtn, stopBtn, tempoLabel, tempoSlider, bpmDisplay,
-    metBtn, hintsBtn, micBtn, practiceBtn, thresholdLabel, thresholdInput, thresholdUnit)
+    metBtn, hintsBtn, voiceBtn, micBtn, practiceBtn, thresholdLabel, thresholdInput, thresholdUnit,
+    loopBtn, loopFromInput, loopSep, loopToInput, loopRestBtn)
   return bar
 }
 
@@ -136,4 +224,22 @@ export function updateBpmDisplay(bpm: number): void {
 
 export function setPlayPauseIcon(playing: boolean): void {
   if (playPauseBtn) playPauseBtn.textContent = playing ? '⏸' : '▶'
+}
+
+// Call when a new score is loaded to reset loop range and max bar.
+export function resetLoopControl(totalBars: number): void {
+  if (!loopBtn) return
+  loopBtn.textContent = 'Loop: OFF'
+  loopBtn.classList.remove('btn-active')
+  loopFromInput.value = '1'
+  loopFromInput.max   = String(totalBars)
+  loopToInput.value   = String(totalBars)
+  loopToInput.max     = String(totalBars)
+  loopRangeEls.forEach(el => el.style.display = 'none')
+  // Reset rest button to ON (default)
+  const restBtn = loopRangeEls[3] as HTMLButtonElement
+  if (restBtn) {
+    restBtn.textContent = 'Rest: ON'
+    restBtn.classList.add('btn-active')
+  }
 }

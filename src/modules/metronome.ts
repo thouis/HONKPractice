@@ -53,3 +53,8 @@ export function stopMetronome(): void {
 }
 
 export function isEnabled(): boolean { return enabled }
+
+export function setMetronomeVolume(v: number): void {
+  if (!clickSynth) return
+  clickSynth.volume.value = v === 0 ? -Infinity : 20 * Math.log10(v / 100)
+}

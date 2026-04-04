@@ -25,6 +25,19 @@ export function getOsmd() {
   return osmdInstance
 }
 
+export function getMeasureCount(): number {
+  return (osmdInstance as any)?.Sheet?.SourceMeasures?.length ?? 0
+}
+
+export function renderRange(from: number, to: number): void {
+  if (!osmdInstance) return
+  osmdInstance.setOptions({ drawFromMeasureNumber: from, drawUpToMeasureNumber: to })
+  osmdInstance.render()
+  osmdInstance.enableOrDisableCursors(true)
+  osmdInstance.cursor.show()
+  osmdInstance.cursor.reset()
+}
+
 export function resetCursor(): void {
   osmdInstance?.cursor.reset()
 }

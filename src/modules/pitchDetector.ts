@@ -42,6 +42,10 @@ export function setPitchMeterThreshold(cents: number): void {
   thresholdCents = cents
 }
 
+export function setPitchSensitivity(minDb: number): void {
+  if (detector) detector.minVolumeDecibels = minDb
+}
+
 // Position the meter to the right of the cursor.
 // anchorX/anchorY are container-relative px; cursorH is cursor element height.
 export function setPitchMeterAnchor(anchorX: number, anchorY: number, cursorH: number): void {
