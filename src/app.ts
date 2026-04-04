@@ -1,13 +1,16 @@
 import { createToolbar, setScoreTitle } from './ui/toolbar'
-import { createControls, updateBpmDisplay, setPlayPauseIcon, resetLoopControl, type HintsMode, type VoiceMode } from './ui/controls'
+import { createControls, updateBpmDisplay, setPlayPauseIcon, resetLoopControl,
+         setSelectBtnState, setLoopUI, type HintsMode, type VoiceMode } from './ui/controls'
 import { createScorePanel, getOsmdContainer, getBeatIndicator, setRangeIndicator, clearRangeIndicator } from './ui/scorePanel'
 import { openFilePicker } from './modules/scoreLoader'
 import { initDisplay, loadAndRender, getOsmd, resetCursor, advanceCursor,
-         getMeasureCount, renderRange } from './modules/scoreDisplay'
+         getMeasureCount, renderRange, initScrollSuppression, scrollCursorIntoView,
+         buildCursorPixelPositions } from './modules/scoreDisplay'
 import { initSampler, buildTimeline, play, pause, stop, setTempoRatio,
          getWrittenBpm, getTempoRatio, getTransportState, onCursorAdvance,
-         setLoopEnabled, setLoopRestEnabled, setVoiceMode, setMusicVolume } from './modules/playback'
-import { initMetronome, setMetronomeEnabled, startMetronome, stopMetronome, setMetronomeVolume } from './modules/metronome'
+         setLoopEnabled, setLoopRestEnabled, setVoiceMode, setMusicVolume,
+         getTimeline, seekToEvent, reschedule } from './modules/playback'
+import { initMetronome, setMetronomeEnabled, setMetronomeVolume } from './modules/metronome'
 import { computeAndRenderHints } from './modules/positionAdvisor'
 import { startPitchDetection, stopPitchDetection, setExpectedPitch,
          setPitchMeterAnchor, setPitchMeterThreshold, setPitchSensitivity } from './modules/pitchDetector'
@@ -28,6 +31,10 @@ let currentXml = ''   // for per-score loop memory
 
 // Module-level so handleStop can reset it without closure issues.
 let cursorIdx = 0
+let notePixelPositions: Map<number, {x: number, y: number}> = new Map()
+let selectState: 'idle' | 'selecting' | 'active' = 'idle'
+let selectFirstMeasure = -1
+let selectAnchorEl: HTMLElement | null = null
 
 export async function initApp(root: HTMLElement): Promise<void> {
   const settings = loadSettings()
@@ -55,6 +62,7 @@ export async function initApp(root: HTMLElement): Promise<void> {
     onLoopChange: handleLoopChange,
     onLoopRestChange: setLoopRestEnabled,
     onVoiceChange: handleVoiceChange,
+    onSelectClick: handleSelectClick,
   })
 
   root.append(toolbar, controls, scorePanel)
@@ -85,8 +93,35 @@ export async function initApp(root: HTMLElement): Promise<void> {
       advanceCursor()
       cursorIdx++
     }
+    scrollCursorIntoView()
     updateExpectedPitch()
   })
+
+  initScrollSuppression()
+
+  // Re-run hints and rebuild click map when the score container resizes.
+  let resizeTimer = 0
+  new ResizeObserver(() => {
+    clearTimeout(resizeTimer)
+    resizeTimer = window.setTimeout(() => {
+      const osmd = getOsmd()
+      const container = getOsmdContainer()
+      if (!osmd) return
+      computeAndRenderHints(osmd, container, hintsMode)
+      notePixelPositions = buildCursorPixelPositions(container)
+      updateMeterAnchor()
+    }, 150)
+  }).observe(getOsmdContainer())
+
+  // Keyboard shortcuts.
+  document.addEventListener('keydown', (e) => {
+    if ((e.target as HTMLElement).tagName === 'INPUT') return
+    if (e.code === 'Space')  { e.preventDefault(); handlePlayPause() }
+    if (e.code === 'Escape') { e.preventDefault(); handleStop() }
+  })
+
+  // Click-to-seek: click anywhere on the score to jump to that position.
+  getOsmdContainer().addEventListener('click', handleScoreClick)
 
   // Load saved score, or fall back to the built-in default.
   const savedXml = loadScore()
@@ -122,6 +157,11 @@ async function renderScore(xml: string, titleHint: string): Promise<void> {
   currentXml = xml
   scoreLoaded = true
   cursorIdx = 0
+  selectState = 'idle'
+  selectFirstMeasure = -1
+  clearSelectAnchor()
+  setSelectBtnState('idle')
+  getOsmdContainer().style.cursor = ''
   const total = getMeasureCount()
 
   // Restore saved loop range for this score, or reset to full score.
@@ -148,6 +188,7 @@ async function renderScore(xml: string, titleHint: string): Promise<void> {
   }
 
   buildTimeline(osmd)
+  notePixelPositions = buildCursorPixelPositions(getOsmdContainer())
   updateBpmDisplay(getWrittenBpm() * getTempoRatio())
 
   const container = getOsmdContainer()
@@ -155,36 +196,118 @@ async function renderScore(xml: string, titleHint: string): Promise<void> {
 
   const sheet = (osmd as any).Sheet
   const ts = sheet?.SourceMeasures?.[0]?.ActiveTimeSignature
-  if (metronomeOn) {
-    startMetronome(getWrittenBpm() * getTempoRatio(), ts?.Numerator ?? 4)
+  if (metronomeOn) reschedule()
+}
+
+function clearSelectAnchor(): void {
+  selectAnchorEl?.remove()
+  selectAnchorEl = null
+}
+
+function handleSelectClick(): void {
+  if (selectState === 'idle') {
+    selectState = 'selecting'
+    selectFirstMeasure = -1
+    setSelectBtnState('selecting')
+    getOsmdContainer().style.cursor = 'crosshair'
+  } else if (selectState === 'selecting') {
+    // Cancel
+    clearSelectAnchor()
+    selectState = 'idle'
+    selectFirstMeasure = -1
+    setSelectBtnState('idle')
+    getOsmdContainer().style.cursor = ''
+  } else {
+    // Unselect — restore full score
+    selectState = 'idle'
+    setSelectBtnState('idle')
+    const total = getMeasureCount()
+    handleLoopChange(false, 1, total)
   }
+}
+
+function handleScoreClick(e: MouseEvent): void {
+  if (practiceOn) return
+  const osmd = getOsmd()
+  if (!osmd || notePixelPositions.size === 0) return
+
+  const container = getOsmdContainer()
+  const rect = container.getBoundingClientRect()
+  const cx = e.clientX - rect.left
+  const cy = e.clientY - rect.top
+
+  // Find the timeline event whose note is closest to the click (X weighted more).
+  const tl = getTimeline()
+  let bestEvIdx = -1
+  let bestDist = Infinity
+  for (let i = 0; i < tl.length; i++) {
+    const pos = notePixelPositions.get(tl[i].cursorIndex)
+    if (!pos) continue
+    const dx = pos.x - cx
+    const dy = (pos.y - cy) * 0.25   // down-weight vertical distance
+    const dist = Math.sqrt(dx * dx + dy * dy)
+    if (dist < bestDist) { bestDist = dist; bestEvIdx = i }
+  }
+  if (bestEvIdx === -1) return
+
+  if (selectState === 'selecting') {
+    // Selection mode: use measure index (1-based) as the anchor.
+    const measure = tl[bestEvIdx].measureIndex + 1
+    if (selectFirstMeasure === -1) {
+      selectFirstMeasure = measure
+      // Show a vertical marker at the clicked note position.
+      const pos = notePixelPositions.get(tl[bestEvIdx].cursorIndex)
+      if (pos) {
+        clearSelectAnchor()
+        selectAnchorEl = document.createElement('div')
+        selectAnchorEl.style.cssText =
+          `position:absolute;left:${pos.x - 1}px;top:0;bottom:0;width:2px;` +
+          'background:#89b4fa;opacity:0.7;pointer-events:none;z-index:50;'
+        container.appendChild(selectAnchorEl)
+      }
+    } else {
+      const from = Math.min(selectFirstMeasure, measure)
+      const to   = Math.max(selectFirstMeasure, measure)
+      clearSelectAnchor()
+      selectFirstMeasure = -1
+      selectState = 'active'
+      setSelectBtnState('active')
+      container.style.cursor = ''
+      setLoopUI(true, from, to)
+      handleLoopChange(true, from, to)
+    }
+    return
+  }
+
+  const targetCursorIdx = tl[bestEvIdx].cursorIndex
+  seekToEvent(bestEvIdx)
+
+  // Advance display cursor to match.
+  resetCursor()
+  for (let i = 0; i < targetCursorIdx; i++) advanceCursor()
+  cursorIdx = targetCursorIdx
+  scrollCursorIntoView()
+  updateExpectedPitch()
 }
 
 async function handlePlayPause(): Promise<void> {
   if (!scoreLoaded) return
   if (getTransportState() === 'started') {
     pause()
-    stopMetronome()
     setPlayPauseIcon(false)
   } else {
     await play()
     setPlayPauseIcon(true)
-    const osmd = getOsmd()
-    const sheet = (osmd as any)?.Sheet
-    const ts = sheet?.SourceMeasures?.[0]?.ActiveTimeSignature
-    if (metronomeOn) {
-      startMetronome(getWrittenBpm() * getTempoRatio(), ts?.Numerator ?? 4)
-    }
   }
 }
 
 function handleStop(): void {
   stop()
-  stopMetronome()
   resetCursor()
   cursorIdx = 0
   setPlayPauseIcon(false)
 }
+
 
 function handleTempoChange(ratio: number): void {
   setTempoRatio(ratio)
@@ -196,14 +319,7 @@ function handleTempoChange(ratio: number): void {
 function handleMetronomeToggle(on: boolean): void {
   metronomeOn = on
   setMetronomeEnabled(on)
-  if (on) {
-    const osmd = getOsmd()
-    const sheet = (osmd as any)?.Sheet
-    const ts = sheet?.SourceMeasures?.[0]?.ActiveTimeSignature
-    startMetronome(getWrittenBpm() * getTempoRatio(), ts?.Numerator ?? 4)
-  } else {
-    stopMetronome()
-  }
+  reschedule()
   saveSettings({ tempoRatio: getTempoRatio(), hintsMode, metronomeOn })
 }
 
@@ -291,7 +407,6 @@ function handlePracticeThresholdChange(cents: number): void {
 async function handleLoopChange(enabled: boolean, from: number, to: number): Promise<void> {
   loopOn = enabled
   stop()
-  stopMetronome()
   setPlayPauseIcon(false)
 
   const osmd = getOsmd()
@@ -300,7 +415,8 @@ async function handleLoopChange(enabled: boolean, from: number, to: number): Pro
   const clampedFrom = Math.max(1, from)
   const clampedTo   = Math.min(to, total)
 
-  if (enabled) {
+  if (enabled || selectState === 'active') {
+    // Show selected/loop range; keep it visible even when just toggling loop off.
     renderRange(clampedFrom, clampedTo)
     setRangeIndicator(clampedFrom, clampedTo, total)
   } else {
@@ -310,6 +426,7 @@ async function handleLoopChange(enabled: boolean, from: number, to: number): Pro
   cursorIdx = 0
   setLoopEnabled(enabled)
   buildTimeline(osmd)
+  notePixelPositions = buildCursorPixelPositions(getOsmdContainer())
   computeAndRenderHints(osmd, getOsmdContainer(), hintsMode)
   updateExpectedPitch()
 
@@ -356,6 +473,7 @@ function practiceAdvance(): void {
 
   if (osmd.cursor.iterator.EndReached) {
     if (loopOn) { resetCursor(); cursorIdx = 0; updateExpectedPitch() }
+    else showPracticeDone()
     return
   }
 
@@ -368,9 +486,23 @@ function practiceAdvance(): void {
     advanceCursor()
     cursorIdx++
   }
-  // If we hit the end during rest-skipping, loop.
-  if (osmd.cursor.iterator.EndReached && loopOn) {
-    resetCursor(); cursorIdx = 0
+  // If we hit the end during rest-skipping, loop or signal done.
+  if (osmd.cursor.iterator.EndReached) {
+    if (loopOn) { resetCursor(); cursorIdx = 0 }
+    else showPracticeDone()
   }
   updateExpectedPitch()
+}
+
+function showPracticeDone(): void {
+  const container = getOsmdContainer()
+  const el = document.createElement('div')
+  el.textContent = 'Done!'
+  el.style.cssText =
+    'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);' +
+    'font-size:3rem;font-weight:bold;color:#a6e3a1;text-shadow:0 0 20px #a6e3a1;' +
+    'pointer-events:none;opacity:1;transition:opacity 1s;z-index:100;'
+  container.appendChild(el)
+  requestAnimationFrame(() => requestAnimationFrame(() => { el.style.opacity = '0' }))
+  el.addEventListener('transitionend', () => el.remove())
 }

@@ -7,7 +7,8 @@ export interface PositionEntry {
 export interface NoteEvent {
   fractionStart: number;   // quarter-note beats from score start
   durationFraction: number;
-  midiNotes: number[];     // one per voice entry (skips rests)
+  midiNotes: number[];       // one per voice entry (skips rests)
+  noteDurations: number[];   // per-note duration (may differ for tied notes)
   cursorIndex: number;
   measureIndex: number;
 }

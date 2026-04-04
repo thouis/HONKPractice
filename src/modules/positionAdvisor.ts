@@ -49,7 +49,46 @@ function runDP(chords: number[][]): number[] {
   const prevFrom: number[][] = Array.from({ length: n }, () => new Array(8).fill(-1))
   const prevCost = new Array(8).fill(INF)
 
-  for (const e of validPositions(lowest[0])) prevCost[e.pos] = 0
+  // Acceptable alternates: specific positions that are reasonable fallbacks
+  const ACCEPTABLE_ALTERNATES = new Set<string>([
+    '3,6',  // partial 3, pos 6 (F3)
+    '4,5',  // partial 4, pos 5 (Bb3)
+    '6,4',  // partial 6, pos 4 (F3)
+  ])
+  const ACCEPTABLE_PENALTY = 1
+  const NONPREFERRED_PENALTY = 10  // heavy penalty for non-acceptable alternates
+
+  // Check if a note has a lower partial available
+  const hasLowerPartial = (midi: number, partial: number): boolean => {
+    const allPositions = validPositions(midi)
+    return allPositions.some(p => p.partial < partial)
+  }
+
+  const getPenalty = (midi: number, e: PositionEntry): number => {
+    let penalty = 0
+    
+    // Penalize high partials (above 5)
+    if (e.partial > 5) {
+      penalty += 2 * (e.partial - 5)  // scales: 6→2, 7→4, 8→6, 9→8, 10→10
+    }
+    
+    // Penalize partial 4 if lower partials are available
+    if (e.partial === 4 && hasLowerPartial(midi, 4)) {
+      penalty += 3
+    }
+    
+    // Penalize non-preferred positions
+    if (!e.preferred) {
+      const key = `${e.partial},${e.pos}`
+      penalty += ACCEPTABLE_ALTERNATES.has(key) ? ACCEPTABLE_PENALTY : NONPREFERRED_PENALTY
+    }
+    
+    return penalty
+  }
+
+  for (const e of validPositions(lowest[0])) {
+    prevCost[e.pos] = getPenalty(lowest[0], e)
+  }
   const costTable: number[][] = [prevCost.slice()]
 
   for (let i = 1; i < n; i++) {
@@ -58,7 +97,7 @@ function runDP(chords: number[][]): number[] {
       const p = e.pos
       for (const pe of validPositions(lowest[i - 1])) {
         const pp = pe.pos
-        const c = costTable[i - 1][pp] + Math.abs(p - pp)
+        const c = costTable[i - 1][pp] + Math.abs(p - pp) + getPenalty(lowest[i], e)
         if (c < curCost[p] || (c === curCost[p] && pp < prevFrom[i][p])) {
           curCost[p] = c
           prevFrom[i][p] = pp

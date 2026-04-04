@@ -1,5 +1,8 @@
 import * as Tone from 'tone'
+import { isEnabled as isMetronomeEnabled, scheduleClick } from './metronome'
 import type { NoteEvent } from '../types'
+
+const DEBUG = false
 
 // Sample notes from FluidR3_GM trombone set
 // Filenames use 's' for sharps (e.g. Ds2 = D#2), map to Tone.js note names
@@ -21,7 +24,9 @@ let timelineOffset = 0   // fractionStart of first event; events are scheduled r
 let loopEnabled = false
 let loopRestEnabled = true   // insert one bar of silence before each repeat
 let beatsPerBar = 4
+let beatDenominator = 4  // time sig denominator; whole note / denominator = one click interval
 let voiceMode: VoiceMode = 'all'
+let seekOffsetSec = 0   // transport offset used on next play()
 
 export function setVoiceMode(mode: VoiceMode): void { voiceMode = mode }
 
@@ -65,6 +70,7 @@ export function buildTimeline(osmd: import('opensheetmusicdisplay').OpenSheetMus
     const notes = osmd.cursor.NotesUnderCursor()
 
     const midiNotes: number[] = []
+    const noteDurations: number[] = []   // parallel to midiNotes
     let durationFraction = 0
 
     for (const note of notes ?? []) {
@@ -72,20 +78,36 @@ export function buildTimeline(osmd: import('opensheetmusicdisplay').OpenSheetMus
       // Skip rests and tie continuations (held notes should not re-trigger).
       if (n.isRest?.()) continue
       const tie = n.NoteTie
-      if (tie && tie.StartNote !== n) continue  // this note is the end of a tie
-      midiNotes.push(n.halfTone + 12)
-      if (durationFraction === 0) {
-        durationFraction = n.Length?.RealValue ?? 0.25
+      // Skip only genuine tie continuations: StartNote must exist, differ from this
+      // note, AND share the same pitch (ties always connect equal pitches; slurs
+      // encoded as ties would have different pitches and should still sound).
+      if (tie && tie.StartNote && tie.StartNote !== n &&
+          tie.StartNote.halfTone === n.halfTone) continue
+
+      // For the start of a tie chain, sum all chained note lengths so the
+      // sampler sustains through continuations that we skip.
+      let noteDur: number = n.Length?.RealValue ?? 0.25
+      if (tie && tie.StartNote === n && Array.isArray(tie.Notes) && tie.Notes.length > 1) {
+        noteDur = (tie.Notes as any[]).reduce(
+          (sum: number, tn: any) => sum + (tn.Length?.RealValue ?? 0), 0
+        )
       }
+
+      midiNotes.push(n.halfTone + 12)
+      noteDurations.push(noteDur)
+      if (durationFraction === 0) durationFraction = noteDur
     }
 
     // Merge entries at the same timestamp into a single event to avoid
     // multiple cursor advances firing simultaneously.
-    if (fractionStart === prevFraction && timeline.length > 0) {
+    if (Math.abs(fractionStart - prevFraction) < 1e-6 && timeline.length > 0) {
       const last = timeline[timeline.length - 1]
       // Absorb any new notes into the existing event at this timestamp.
-      for (const m of midiNotes) {
-        if (!last.midiNotes.includes(m)) last.midiNotes.push(m)
+      for (let i = 0; i < midiNotes.length; i++) {
+        if (!last.midiNotes.includes(midiNotes[i])) {
+          last.midiNotes.push(midiNotes[i])
+          last.noteDurations.push(noteDurations[i])
+        }
       }
       if (last.durationFraction === 0 && durationFraction > 0) {
         last.durationFraction = durationFraction
@@ -98,6 +120,7 @@ export function buildTimeline(osmd: import('opensheetmusicdisplay').OpenSheetMus
         fractionStart,
         durationFraction,
         midiNotes,
+        noteDurations,
         cursorIndex: idx,
         measureIndex: osmd.cursor.iterator.CurrentMeasureIndex,
       })
@@ -110,6 +133,7 @@ export function buildTimeline(osmd: import('opensheetmusicdisplay').OpenSheetMus
   osmd.cursor.reset()
   timelineOffset = timeline.length > 0 ? timeline[0].fractionStart : 0
   beatsPerBar = sheet?.SourceMeasures?.[0]?.ActiveTimeSignature?.Numerator ?? 4
+  beatDenominator = sheet?.SourceMeasures?.[0]?.ActiveTimeSignature?.Denominator ?? 4
 }
 
 export function setLoopEnabled(enabled: boolean): void {
@@ -130,14 +154,22 @@ function scheduleEvents(): void {
   Tone.getTransport().bpm.value = bpm
   const secPerBeat = 60 / bpm
 
+  let prevMeasure = -1
   for (const ev of timeline) {
     const offsetSec = (ev.fractionStart - timelineOffset) * secPerBeat
     Tone.getTransport().schedule((time) => {
+      if (ev.measureIndex !== prevMeasure) {
+        if (DEBUG) console.log('[score] measure', ev.measureIndex, 'START at audioTime', time)
+        prevMeasure = ev.measureIndex
+      }
       const notesToPlay = selectVoiceNotes(ev.midiNotes)
       if (notesToPlay.length > 0 && sampler) {
-        const durSec = Math.max(0.05, ev.durationFraction * secPerBeat - 0.02)
         for (const midi of notesToPlay) {
+          const noteIdx = ev.midiNotes.indexOf(midi)
+          const noteDur = noteIdx >= 0 ? ev.noteDurations[noteIdx] : ev.durationFraction
+          const durSec = Math.max(0.05, noteDur * secPerBeat - 0.02)
           const freq = Tone.Frequency(midi, 'midi').toFrequency()
+          if (DEBUG) console.log('[score] note midi', midi, 'dur', durSec.toFixed(2), 's at audioTime', time.toFixed(3))
           try { sampler.triggerAttackRelease(freq, durSec, time) }
           catch (e) { console.warn('triggerAttackRelease failed for midi', midi, e) }
         }
@@ -152,12 +184,33 @@ function scheduleEvents(): void {
   if (loopEnabled && timeline.length > 0) {
     const last = timeline[timeline.length - 1]
     const lastNoteEndSec = (last.fractionStart - timelineOffset + last.durationFraction) * secPerBeat
-    const restSec = loopRestEnabled ? beatsPerBar * secPerBeat : 0
+    const restSec = loopRestEnabled ? beatsPerBar * secPerBeat / beatDenominator : 0
     transport.loop = true
     transport.loopStart = 0
     transport.loopEnd = Math.max(lastNoteEndSec + restSec, 0.1)
   } else {
     transport.loop = false
+  }
+
+  // Schedule metronome clicks as individual transport events (same mechanism as notes)
+  if (DEBUG) console.log('[metro] isMetronomeEnabled:', isMetronomeEnabled(), 'timeline.length:', timeline.length)
+  if (isMetronomeEnabled() && timeline.length > 0) {
+    const last = timeline[timeline.length - 1]
+    const endSec = (last.fractionStart - timelineOffset + last.durationFraction) * secPerBeat
+    const loopEndSec = transport.loop ? (transport.loopEnd as number) : endSec
+    const clickIntervalSec = secPerBeat / beatDenominator
+    if (DEBUG) console.log('[metro] secPerBeat:', secPerBeat, 'beatDenominator:', beatDenominator, 'clickIntervalSec:', clickIntervalSec, 'endSec:', endSec, 'beatsPerBar:', beatsPerBar)
+    let clickCount = 0
+    for (let beatIdx = 0; beatIdx * clickIntervalSec < loopEndSec - 0.001; beatIdx++) {
+      const t = beatIdx * clickIntervalSec
+      const isAccent = beatIdx % beatsPerBar === 0
+      clickCount++
+      Tone.getTransport().schedule((time) => {
+        if (DEBUG) console.log('[metro] click fired beatIdx:', beatIdx, 'isAccent:', isAccent, 'audioTime:', time)
+        scheduleClick(time, isAccent)
+      }, t)
+    }
+    if (DEBUG) console.log('[metro] scheduled', clickCount, 'clicks')
   }
 }
 
@@ -165,7 +218,17 @@ export async function play(): Promise<void> {
   await Tone.start()
   await Tone.loaded()   // wait for all buffers regardless of onload callback
   scheduleEvents()
-  Tone.getTransport().start()
+  Tone.getTransport().start('+0', seekOffsetSec || undefined)
+}
+
+export function reschedule(): void {
+  const wasRunning = Tone.getTransport().state === 'started'
+  if (wasRunning) {
+    const pos = Tone.getTransport().position
+    Tone.getTransport().cancel()
+    scheduleEvents()
+    Tone.getTransport().start('+0', pos as any)
+  }
 }
 
 export function pause(): void {
@@ -176,6 +239,7 @@ export function stop(): void {
   Tone.getTransport().stop()
   Tone.getTransport().cancel()
   Tone.getTransport().position = 0 as any
+  seekOffsetSec = 0
 }
 
 export function setTempoRatio(ratio: number): void {
@@ -194,6 +258,20 @@ export function setTempoRatio(ratio: number): void {
 export function getWrittenBpm(): number { return writtenBpm }
 export function getTempoRatio(): number { return tempoRatio }
 export function getTransportState(): string { return Tone.getTransport().state }
+export function getTimeline(): NoteEvent[] { return timeline }
+
+export function seekToEvent(evIdx: number): void {
+  if (evIdx < 0 || evIdx >= timeline.length) return
+  const bpm = writtenBpm * tempoRatio
+  const secPerBeat = 60 / bpm
+  seekOffsetSec = (timeline[evIdx].fractionStart - timelineOffset) * secPerBeat
+  const wasRunning = Tone.getTransport().state === 'started'
+  if (wasRunning) {
+    Tone.getTransport().cancel()
+    scheduleEvents()
+    Tone.getTransport().start('+0', seekOffsetSec)
+  }
+}
 
 // 0–100 linear → dB
 export function setMusicVolume(v: number): void {

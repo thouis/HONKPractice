@@ -14,6 +14,7 @@ export interface ControlCallbacks {
   onLoopChange: (enabled: boolean, from: number, to: number) => void
   onLoopRestChange: (enabled: boolean) => void
   onVoiceChange: (mode: VoiceMode) => void
+  onSelectClick: () => void
 }
 
 let bpmDisplay: HTMLSpanElement
@@ -27,6 +28,9 @@ let loopBtn: HTMLButtonElement
 let loopFromInput: HTMLInputElement
 let loopToInput: HTMLInputElement
 let loopRangeEls: HTMLElement[]
+let selectBtn: HTMLButtonElement
+let loopBtnState = false  // mirrors closure loopOn; kept in sync for setLoopUI
+void loopBtnState        // suppress unused-read warning — written by setLoopUI/resetLoopControl
 
 export function createControls(cbs: ControlCallbacks): HTMLElement {
   const bar = document.createElement('div')
@@ -185,6 +189,7 @@ export function createControls(cbs: ControlCallbacks): HTMLElement {
 
   loopBtn.onclick = () => {
     loopOn = !loopOn
+    loopBtnState = loopOn
     loopBtn.textContent = `Loop: ${loopOn ? 'ON' : 'OFF'}`
     loopBtn.classList.toggle('btn-active', loopOn)
     loopRangeEls.forEach(el => el.style.display = loopOn ? '' : 'none')
@@ -212,9 +217,15 @@ export function createControls(cbs: ControlCallbacks): HTMLElement {
     cbs.onVoiceChange(mode)
   }
 
+  // --- Select range ---
+  selectBtn = document.createElement('button')
+  selectBtn.textContent = 'Select'
+  selectBtn.className = 'btn'
+  selectBtn.onclick = cbs.onSelectClick
+
   bar.append(rewindBtn, playPauseBtn, stopBtn, tempoLabel, tempoSlider, bpmDisplay,
     metBtn, hintsBtn, voiceBtn, micBtn, practiceBtn, thresholdLabel, thresholdInput, thresholdUnit,
-    loopBtn, loopFromInput, loopSep, loopToInput, loopRestBtn)
+    loopBtn, loopFromInput, loopSep, loopToInput, loopRestBtn, selectBtn)
   return bar
 }
 
@@ -226,9 +237,34 @@ export function setPlayPauseIcon(playing: boolean): void {
   if (playPauseBtn) playPauseBtn.textContent = playing ? '⏸' : '▶'
 }
 
+export type SelectBtnState = 'idle' | 'selecting' | 'active'
+
+export function setSelectBtnState(state: SelectBtnState): void {
+  if (!selectBtn) return
+  const labels: Record<SelectBtnState, string> = {
+    idle:      'Select',
+    selecting: 'Cancel',
+    active:    'Unselect',
+  }
+  selectBtn.textContent = labels[state]
+  selectBtn.classList.toggle('btn-active', state === 'active')
+}
+
+// Sync the loop button + inputs to reflect an externally-applied range.
+export function setLoopUI(enabled: boolean, from: number, to: number): void {
+  if (!loopBtn) return
+  loopBtnState = enabled
+  loopBtn.textContent = `Loop: ${enabled ? 'ON' : 'OFF'}`
+  loopBtn.classList.toggle('btn-active', enabled)
+  loopFromInput.value = String(from)
+  loopToInput.value   = String(to)
+  loopRangeEls.forEach(el => el.style.display = enabled ? '' : 'none')
+}
+
 // Call when a new score is loaded to reset loop range and max bar.
 export function resetLoopControl(totalBars: number): void {
   if (!loopBtn) return
+  loopBtnState = false
   loopBtn.textContent = 'Loop: OFF'
   loopBtn.classList.remove('btn-active')
   loopFromInput.value = '1'

@@ -1,58 +1,42 @@
 import * as Tone from 'tone'
 
+const DEBUG = false
+
 let clickSynth: Tone.Synth | null = null
-let sequence: Tone.Sequence | null = null
 let beatIndicator: HTMLElement | null = null
 let enabled = false
 
 export function initMetronome(indicator: HTMLElement): void {
   beatIndicator = indicator
   clickSynth = new Tone.Synth({
-    oscillator: { type: 'sine' },
-    envelope: { attack: 0.001, decay: 0.08, sustain: 0, release: 0.01 },
+    oscillator: { type: 'triangle' },
+    envelope: { attack: 0.001, decay: 0.06, sustain: 0, release: 0.01 },
     volume: -6,
   }).toDestination()
 }
 
 export function setMetronomeEnabled(on: boolean): void {
   enabled = on
-  if (!on) {
-    sequence?.stop()
-    sequence?.dispose()
-    sequence = null
-    beatIndicator?.classList.remove('beat-flash')
-  }
-}
-
-export function startMetronome(bpm: number, numerator: number): void {
-  if (!enabled || !clickSynth) return
-  stopMetronome()
-
-  Tone.getTransport().bpm.value = bpm
-
-  const beats = Array.from({ length: numerator }, (_, i) => i)
-  sequence = new Tone.Sequence(
-    (time, beat) => {
-      const freq = beat === 0 ? 1200 : 800
-      clickSynth!.triggerAttackRelease(freq, '32n', time)
-      Tone.getDraw().schedule(() => {
-        beatIndicator?.classList.add('beat-flash')
-        setTimeout(() => beatIndicator?.classList.remove('beat-flash'), 80)
-      }, time)
-    },
-    beats,
-    '4n'
-  )
-  sequence.start(0)
-}
-
-export function stopMetronome(): void {
-  sequence?.stop()
-  sequence?.dispose()
-  sequence = null
+  if (!on) beatIndicator?.classList.remove('beat-flash')
 }
 
 export function isEnabled(): boolean { return enabled }
+
+export function scheduleClick(time: number, isAccent: boolean): void {
+  if (DEBUG) console.log('[click] scheduleClick called, clickSynth:', !!clickSynth, 'isAccent:', isAccent, 'time:', time)
+  if (!clickSynth) return
+  const freq = isAccent ? 1200 : 800
+  try {
+    clickSynth.triggerAttackRelease(freq, '32n', time)
+    if (DEBUG) console.log('[click] triggerAttackRelease succeeded, freq:', freq)
+  } catch (e) {
+    if (DEBUG) console.error('[click] triggerAttackRelease FAILED:', e)
+  }
+  Tone.getDraw().schedule(() => {
+    beatIndicator?.classList.add('beat-flash')
+    setTimeout(() => beatIndicator?.classList.remove('beat-flash'), 80)
+  }, time)
+}
 
 export function setMetronomeVolume(v: number): void {
   if (!clickSynth) return
