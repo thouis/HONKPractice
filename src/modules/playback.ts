@@ -15,9 +15,6 @@ let timeline: NoteEvent[] = []
 let cursorCallbacks: Array<(idx: number) => void> = []
 let writtenBpm = 120
 let tempoRatio = 1.0
-let loaded = false
-
-export function isSamplerLoaded(): boolean { return loaded }
 
 export function initSampler(baseUrl: string, onLoad: () => void): void {
   const urls: Record<string, string> = {}
@@ -27,10 +24,11 @@ export function initSampler(baseUrl: string, onLoad: () => void): void {
     urls,
     baseUrl,
     release: 0.5,
-    onload: () => { loaded = true; onLoad() },
+    onload: () => { console.log('Sampler loaded from', baseUrl); onLoad() },
     onerror: (e) => console.error('Sampler load error', e),
   }).toDestination()
 }
+
 
 // Build event timeline from OSMD cursor walk
 export function buildTimeline(osmd: import('opensheetmusicdisplay').OpenSheetMusicDisplay): void {
@@ -40,30 +38,53 @@ export function buildTimeline(osmd: import('opensheetmusicdisplay').OpenSheetMus
 
   osmd.cursor.reset()
   let idx = 0
+  let prevFraction = -1
   while (!osmd.cursor.iterator.EndReached) {
     const ts: any = osmd.cursor.iterator.CurrentSourceTimestamp
-    const fractionStart: number = ts?.RealValue ?? 0
+    // If timestamp is null the RealValue will be 0; treat those entries as
+    // belonging to the previous timestamp so they don't pile up at t=0.
+    const fractionStart: number = ts != null ? (ts.RealValue ?? 0) : prevFraction
     const notes = osmd.cursor.NotesUnderCursor()
 
     const midiNotes: number[] = []
     let durationFraction = 0
 
     for (const note of notes ?? []) {
-      if (!(note as any).isRest?.()) {
-        midiNotes.push((note as any).halfTone + 12)
-        if (durationFraction === 0) {
-          durationFraction = (note as any).Length?.RealValue ?? 0.25
-        }
+      const n = note as any
+      // Skip rests and tie continuations (held notes should not re-trigger).
+      if (n.isRest?.()) continue
+      const tie = n.NoteTie
+      if (tie && tie.StartNote !== n) continue  // this note is the end of a tie
+      midiNotes.push(n.halfTone + 12)
+      if (durationFraction === 0) {
+        durationFraction = n.Length?.RealValue ?? 0.25
       }
     }
 
-    timeline.push({
-      fractionStart,
-      durationFraction,
-      midiNotes,
-      cursorIndex: idx,
-      measureIndex: osmd.cursor.iterator.CurrentMeasureIndex,
-    })
+    // Merge entries at the same timestamp into a single event to avoid
+    // multiple cursor advances firing simultaneously.
+    if (fractionStart === prevFraction && timeline.length > 0) {
+      const last = timeline[timeline.length - 1]
+      // Absorb any new notes into the existing event at this timestamp.
+      for (const m of midiNotes) {
+        if (!last.midiNotes.includes(m)) last.midiNotes.push(m)
+      }
+      if (last.durationFraction === 0 && durationFraction > 0) {
+        last.durationFraction = durationFraction
+      }
+      // Update cursorIndex to the latest step at this timestamp so the cursor
+      // ends up at the right position after all voices at this beat are processed.
+      last.cursorIndex = idx
+    } else {
+      timeline.push({
+        fractionStart,
+        durationFraction,
+        midiNotes,
+        cursorIndex: idx,
+        measureIndex: osmd.cursor.iterator.CurrentMeasureIndex,
+      })
+      prevFraction = fractionStart
+    }
 
     osmd.cursor.next()
     idx++
@@ -84,20 +105,25 @@ function scheduleEvents(): void {
   for (const ev of timeline) {
     const offsetSec = ev.fractionStart * secPerBeat
     Tone.getTransport().schedule((time) => {
-      if (ev.midiNotes.length > 0 && sampler && loaded) {
+      if (ev.midiNotes.length > 0 && sampler) {
         const durSec = Math.max(0.05, ev.durationFraction * secPerBeat - 0.02)
         for (const midi of ev.midiNotes) {
           const freq = Tone.Frequency(midi, 'midi').toFrequency()
-          sampler.triggerAttackRelease(freq, durSec, time)
+          try { sampler.triggerAttackRelease(freq, durSec, time) }
+          catch (e) { console.warn('triggerAttackRelease failed for midi', midi, e) }
         }
       }
-      cursorCallbacks.forEach(cb => cb(ev.cursorIndex))
+      // Defer cursor/DOM update to display time (not audio lookahead time).
+      Tone.getDraw().schedule(() => {
+        cursorCallbacks.forEach(cb => cb(ev.cursorIndex))
+      }, time)
     }, offsetSec)
   }
 }
 
 export async function play(): Promise<void> {
   await Tone.start()
+  await Tone.loaded()   // wait for all buffers regardless of onload callback
   scheduleEvents()
   Tone.getTransport().start()
 }

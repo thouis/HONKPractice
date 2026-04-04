@@ -1,16 +1,16 @@
+export type HintsMode = 0 | 1 | 2  // 0=off, 1=position, 2=position+partial
+
 export interface ControlCallbacks {
-  onPlay: () => void
-  onPause: () => void
+  onPlayPause: () => void
   onStop: () => void
   onTempoChange: (ratio: number) => void
   onMetronomeToggle: (on: boolean) => void
-  onHintsToggle: (on: boolean) => void
+  onHintsChange: (mode: HintsMode) => void
 }
 
 let bpmDisplay: HTMLSpanElement
 let tempoSlider: HTMLInputElement
-let playBtn: HTMLButtonElement
-let pauseBtn: HTMLButtonElement
+let playPauseBtn: HTMLButtonElement
 let metBtn: HTMLButtonElement
 let hintsBtn: HTMLButtonElement
 
@@ -24,15 +24,10 @@ export function createControls(cbs: ControlCallbacks): HTMLElement {
   rewindBtn.className = 'btn'
   rewindBtn.onclick = cbs.onStop
 
-  playBtn = document.createElement('button')
-  playBtn.textContent = '▶'
-  playBtn.className = 'btn'
-  playBtn.onclick = cbs.onPlay
-
-  pauseBtn = document.createElement('button')
-  pauseBtn.textContent = '⏸'
-  pauseBtn.className = 'btn'
-  pauseBtn.onclick = cbs.onPause
+  playPauseBtn = document.createElement('button')
+  playPauseBtn.textContent = '▶'
+  playPauseBtn.className = 'btn'
+  playPauseBtn.onclick = cbs.onPlayPause
 
   const stopBtn = document.createElement('button')
   stopBtn.textContent = '⏹'
@@ -68,22 +63,27 @@ export function createControls(cbs: ControlCallbacks): HTMLElement {
     cbs.onMetronomeToggle(metOn)
   }
 
-  // --- Hints ---
+  // --- Hints (3-state cycle: off → pos → pos+partial → off) ---
   hintsBtn = document.createElement('button')
-  hintsBtn.textContent = 'Hints: OFF'
   hintsBtn.className = 'btn'
-  let hintsOn = false
+  let hintsMode: HintsMode = 0
+  const HINTS_LABELS = ['Hints: OFF', 'Hints: pos', 'Hints: pos+∂']
+  hintsBtn.textContent = HINTS_LABELS[0]
   hintsBtn.onclick = () => {
-    hintsOn = !hintsOn
-    hintsBtn.textContent = `Hints: ${hintsOn ? 'ON' : 'OFF'}`
-    hintsBtn.classList.toggle('btn-active', hintsOn)
-    cbs.onHintsToggle(hintsOn)
+    hintsMode = ((hintsMode + 1) % 3) as HintsMode
+    hintsBtn.textContent = HINTS_LABELS[hintsMode]
+    hintsBtn.classList.toggle('btn-active', hintsMode > 0)
+    cbs.onHintsChange(hintsMode)
   }
 
-  bar.append(rewindBtn, playBtn, pauseBtn, stopBtn, tempoLabel, tempoSlider, bpmDisplay, metBtn, hintsBtn)
+  bar.append(rewindBtn, playPauseBtn, stopBtn, tempoLabel, tempoSlider, bpmDisplay, metBtn, hintsBtn)
   return bar
 }
 
 export function updateBpmDisplay(bpm: number): void {
   if (bpmDisplay) bpmDisplay.textContent = `${Math.round(bpm)} BPM`
+}
+
+export function setPlayPauseIcon(playing: boolean): void {
+  if (playPauseBtn) playPauseBtn.textContent = playing ? '⏸' : '▶'
 }

@@ -1,34 +1,37 @@
 import { createToolbar, setScoreTitle } from './ui/toolbar'
-import { createControls, updateBpmDisplay } from './ui/controls'
+import { createControls, updateBpmDisplay, setPlayPauseIcon, type HintsMode } from './ui/controls'
 import { createScorePanel, getOsmdContainer, getBeatIndicator } from './ui/scorePanel'
 import { openFilePicker } from './modules/scoreLoader'
 import { initDisplay, loadAndRender, getOsmd, resetCursor, advanceCursor } from './modules/scoreDisplay'
 import { initSampler, buildTimeline, play, pause, stop, setTempoRatio,
-         getWrittenBpm, getTempoRatio, isSamplerLoaded, onCursorAdvance } from './modules/playback'
+         getWrittenBpm, getTempoRatio, getTransportState, onCursorAdvance } from './modules/playback'
 import { initMetronome, setMetronomeEnabled, startMetronome, stopMetronome } from './modules/metronome'
 import { computeAndRenderHints } from './modules/positionAdvisor'
 import { saveScore, loadScore, saveSettings, loadSettings } from './modules/storage'
+import { DEFAULT_SCORE_XML } from './data/defaultScore'
 
-let hintsVisible = false
+let hintsMode: HintsMode = 0
 let metronomeOn = false
 let scoreLoaded = false
+
+// Module-level so handleStop can reset it without closure issues.
+let cursorIdx = 0
 
 export async function initApp(root: HTMLElement): Promise<void> {
   const settings = loadSettings()
   const savedTempoRatio: number = (settings.tempoRatio as number) ?? 1.0
-  hintsVisible = (settings.hintsVisible as boolean) ?? false
+  hintsMode = ((settings.hintsMode as HintsMode) ?? 0)
   metronomeOn = (settings.metronomeOn as boolean) ?? false
 
   // --- Build DOM ---
   const toolbar = createToolbar(handleLoadScore)
   const scorePanel = createScorePanel()
   const controls = createControls({
-    onPlay: handlePlay,
-    onPause: handlePause,
+    onPlayPause: handlePlayPause,
     onStop: handleStop,
     onTempoChange: handleTempoChange,
     onMetronomeToggle: handleMetronomeToggle,
-    onHintsToggle: handleHintsToggle,
+    onHintsChange: handleHintsChange,
   })
 
   root.append(toolbar, controls, scorePanel)
@@ -38,12 +41,9 @@ export async function initApp(root: HTMLElement): Promise<void> {
   initMetronome(getBeatIndicator())
 
   const baseUrl = import.meta.env.BASE_URL + 'samples/trombone/'
-  initSampler(baseUrl, () => {
-    console.log('Sampler loaded')
-  })
+  initSampler(baseUrl, () => { console.log('Sampler loaded from', baseUrl) })
 
-  // Cursor advance callback — keep OSMD cursor in sync with transport
-  let cursorIdx = 0
+  // Advance the OSMD cursor to match the transport position.
   onCursorAdvance((idx) => {
     const osmd = getOsmd()
     if (!osmd) return
@@ -53,20 +53,22 @@ export async function initApp(root: HTMLElement): Promise<void> {
     }
   })
 
-  // Try restoring last score from localStorage
+  // Load saved score, or fall back to the built-in default.
   const savedXml = loadScore()
-  if (savedXml) {
-    await renderScore(savedXml, 'Restored score')
-  }
+  await renderScore(savedXml ?? DEFAULT_SCORE_XML, savedXml ? 'Restored score' : 'C Major Scale')
 
-  // Apply saved tempo
   handleTempoChange(savedTempoRatio)
 }
 
 async function handleLoadScore(): Promise<void> {
   try {
     const xml = await openFilePicker()
-    await renderScore(xml, 'Loaded score')
+    // Try to extract title from the file picker (file input doesn't expose the name easily here,
+    // so we read it from the MusicXML work-title element).
+    const titleMatch = xml.match(/<work-title>([^<]+)<\/work-title>/)
+      ?? xml.match(/<movement-title>([^<]+)<\/movement-title>/)
+    const title = titleMatch?.[1] ?? 'Loaded score'
+    await renderScore(xml, title)
     saveScore(xml)
   } catch (e) {
     if ((e as Error).message !== 'No file selected') {
@@ -83,14 +85,13 @@ async function renderScore(xml: string, titleHint: string): Promise<void> {
   if (!osmd) return
 
   scoreLoaded = true
+  cursorIdx = 0  // reset cursor tracking index for new score
   buildTimeline(osmd)
   updateBpmDisplay(getWrittenBpm() * getTempoRatio())
 
-  // Render hints if enabled
   const container = getOsmdContainer()
-  computeAndRenderHints(osmd, container, hintsVisible)
+  computeAndRenderHints(osmd, container, hintsMode)
 
-  // Extract time signature for metronome
   const sheet = (osmd as any).Sheet
   const ts = sheet?.SourceMeasures?.[0]?.ActiveTimeSignature
   if (metronomeOn) {
@@ -98,38 +99,37 @@ async function renderScore(xml: string, titleHint: string): Promise<void> {
   }
 }
 
-async function handlePlay(): Promise<void> {
+async function handlePlayPause(): Promise<void> {
   if (!scoreLoaded) return
-  if (!isSamplerLoaded()) { alert('Audio samples still loading, please wait…'); return }
-  await play()
-
-  const osmd = getOsmd()
-  const sheet = (osmd as any)?.Sheet
-  const ts = sheet?.SourceMeasures?.[0]?.ActiveTimeSignature
-  if (metronomeOn) {
-    startMetronome(getWrittenBpm() * getTempoRatio(), ts?.Numerator ?? 4)
+  if (getTransportState() === 'started') {
+    pause()
+    stopMetronome()
+    setPlayPauseIcon(false)
+  } else {
+    await play()
+    setPlayPauseIcon(true)
+    const osmd = getOsmd()
+    const sheet = (osmd as any)?.Sheet
+    const ts = sheet?.SourceMeasures?.[0]?.ActiveTimeSignature
+    if (metronomeOn) {
+      startMetronome(getWrittenBpm() * getTempoRatio(), ts?.Numerator ?? 4)
+    }
   }
-}
-
-function handlePause(): void {
-  pause()
-  stopMetronome()
 }
 
 function handleStop(): void {
   stop()
   stopMetronome()
   resetCursor()
-  // reset cursor tracking index
-  // (cursorIdx is local to initApp — we use a closure reset trick via a re-render approach)
-  // For now, reloading the cursor walk is sufficient; a full re-render is not needed.
+  cursorIdx = 0
+  setPlayPauseIcon(false)
 }
 
 function handleTempoChange(ratio: number): void {
   setTempoRatio(ratio)
   const bpm = getWrittenBpm() * ratio
   updateBpmDisplay(bpm)
-  saveSettings({ tempoRatio: ratio, hintsVisible, metronomeOn })
+  saveSettings({ tempoRatio: ratio, hintsMode, metronomeOn })
 }
 
 function handleMetronomeToggle(on: boolean): void {
@@ -143,12 +143,12 @@ function handleMetronomeToggle(on: boolean): void {
   } else {
     stopMetronome()
   }
-  saveSettings({ tempoRatio: getTempoRatio(), hintsVisible, metronomeOn })
+  saveSettings({ tempoRatio: getTempoRatio(), hintsMode, metronomeOn })
 }
 
-function handleHintsToggle(on: boolean): void {
-  hintsVisible = on
+function handleHintsChange(mode: HintsMode): void {
+  hintsMode = mode
   const osmd = getOsmd()
-  if (osmd) computeAndRenderHints(osmd, getOsmdContainer(), on)
-  saveSettings({ tempoRatio: getTempoRatio(), hintsVisible: on, metronomeOn })
+  if (osmd) computeAndRenderHints(osmd, getOsmdContainer(), mode)
+  saveSettings({ tempoRatio: getTempoRatio(), hintsMode: mode, metronomeOn })
 }

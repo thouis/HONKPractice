@@ -7,6 +7,8 @@ export async function initDisplay(container: HTMLElement): Promise<void> {
     autoResize: true,
     followCursor: true,
     drawingParameters: 'default',
+    drawMeasureNumbers: true,
+    drawMeasureNumbersOnlyAtSystemStart: true,
   })
 }
 
