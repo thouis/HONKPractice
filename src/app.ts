@@ -7,12 +7,17 @@ import { initSampler, buildTimeline, play, pause, stop, setTempoRatio,
          getWrittenBpm, getTempoRatio, getTransportState, onCursorAdvance } from './modules/playback'
 import { initMetronome, setMetronomeEnabled, startMetronome, stopMetronome } from './modules/metronome'
 import { computeAndRenderHints } from './modules/positionAdvisor'
+import { startPitchDetection, stopPitchDetection, setExpectedPitch,
+         setPitchMeterAnchor, setPitchMeterThreshold } from './modules/pitchDetector'
+import { startPracticeMode, stopPracticeMode, setPracticeExpectedPitch, setPracticeThreshold } from './modules/practiceMode'
 import { saveScore, loadScore, saveSettings, loadSettings } from './modules/storage'
 import { DEFAULT_SCORE_XML } from './data/defaultScore'
 
 let hintsMode: HintsMode = 0
 let metronomeOn = false
 let scoreLoaded = false
+let micOn = false
+let practiceOn = false
 
 // Module-level so handleStop can reset it without closure issues.
 let cursorIdx = 0
@@ -32,6 +37,9 @@ export async function initApp(root: HTMLElement): Promise<void> {
     onTempoChange: handleTempoChange,
     onMetronomeToggle: handleMetronomeToggle,
     onHintsChange: handleHintsChange,
+    onMicToggle: handleMicToggle,
+    onPracticeToggle: handlePracticeToggle,
+    onPracticeThresholdChange: handlePracticeThresholdChange,
   })
 
   root.append(toolbar, controls, scorePanel)
@@ -44,13 +52,16 @@ export async function initApp(root: HTMLElement): Promise<void> {
   initSampler(baseUrl, () => { console.log('Sampler loaded from', baseUrl) })
 
   // Advance the OSMD cursor to match the transport position.
+  // In practice mode the cursor is owned by pitch detection; suppress here.
   onCursorAdvance((idx) => {
+    if (practiceOn) return
     const osmd = getOsmd()
     if (!osmd) return
     while (cursorIdx < idx) {
       advanceCursor()
       cursorIdx++
     }
+    updateExpectedPitch()
   })
 
   // Load saved score, or fall back to the built-in default.
@@ -151,4 +162,116 @@ function handleHintsChange(mode: HintsMode): void {
   const osmd = getOsmd()
   if (osmd) computeAndRenderHints(osmd, getOsmdContainer(), mode)
   saveSettings({ tempoRatio: getTempoRatio(), hintsMode: mode, metronomeOn })
+}
+
+// Returns Hz of the LOWEST pitched note under cursor, or 0.
+function currentNoteHz(): number {
+  const osmd = getOsmd()
+  if (!osmd) return 0
+  const notes = osmd.cursor.NotesUnderCursor()
+  const pitched = (notes ?? []).filter((n: any) => !n.isRest?.())
+  if (pitched.length === 0) return 0
+  const lowestMidi = Math.min(...pitched.map((n: any) => n.halfTone + 12))
+  return 440 * Math.pow(2, (lowestMidi - 69) / 12)
+}
+
+// Reposition the pitch meter to the right of the current OSMD cursor element.
+function updateMeterAnchor(): void {
+  const osmd = getOsmd()
+  if (!osmd) return
+  const cursorEl = (osmd.cursor as any).cursorElement as Element | null
+  if (!cursorEl) return
+  const containerRect = getOsmdContainer().getBoundingClientRect()
+  const r = cursorEl.getBoundingClientRect()
+  setPitchMeterAnchor(
+    r.right - containerRect.left + 6,
+    r.top  - containerRect.top,
+    r.height
+  )
+}
+
+// Returns hold time in ms for the current note.
+// Uses ~50% of the written note duration, clamped to 150–400ms so it feels
+// responsive without being too easy on fast passages.
+function currentNoteHoldMs(): number {
+  const osmd = getOsmd()
+  if (!osmd) return 250
+  const notes = osmd.cursor.NotesUnderCursor()
+  const first = (notes ?? []).find((n: any) => !n.isRest?.()) as any
+  const durationFraction: number = first?.Length?.RealValue ?? 0.25
+  const bpm = getWrittenBpm() * getTempoRatio()
+  const fullMs = durationFraction * (60 / bpm) * 1000
+  return Math.min(400, Math.max(150, fullMs * 0.5))
+}
+
+function updateExpectedPitch(): void {
+  const hz = (micOn || practiceOn) ? currentNoteHz() : 0
+  setExpectedPitch(hz)
+  if (practiceOn) setPracticeExpectedPitch(hz, currentNoteHoldMs())
+  updateMeterAnchor()
+}
+
+async function handleMicToggle(on: boolean): Promise<void> {
+  micOn = on
+  if (on) {
+    try {
+      await startPitchDetection(getOsmdContainer())
+      updateExpectedPitch()
+    } catch (e) {
+      alert('Microphone access denied: ' + (e as Error).message)
+      micOn = false
+    }
+  } else if (!practiceOn) {
+    stopPitchDetection()
+    setExpectedPitch(0)
+  }
+}
+
+function handlePracticeThresholdChange(cents: number): void {
+  setPracticeThreshold(cents)
+  setPitchMeterThreshold(cents)
+}
+
+async function handlePracticeToggle(on: boolean): Promise<void> {
+  practiceOn = on
+  if (on) {
+    if (!micOn) {
+      try {
+        await startPitchDetection(getOsmdContainer())
+      } catch (e) {
+        alert('Microphone access denied: ' + (e as Error).message)
+        practiceOn = false
+        return
+      }
+    }
+    const initialThreshold = 20
+    setPitchMeterThreshold(initialThreshold)
+    const hz = currentNoteHz()
+    setExpectedPitch(hz)
+    setPracticeExpectedPitch(hz, currentNoteHoldMs())
+    updateMeterAnchor()
+    startPracticeMode(practiceAdvance, initialThreshold)
+  } else {
+    stopPracticeMode()
+    if (!micOn) {
+      stopPitchDetection()
+      setExpectedPitch(0)
+    }
+  }
+}
+
+function practiceAdvance(): void {
+  const osmd = getOsmd()
+  if (!osmd || osmd.cursor.iterator.EndReached) return
+  advanceCursor()
+  cursorIdx++
+  // Skip rests automatically (they don't require pitch input).
+  while (!osmd.cursor.iterator.EndReached) {
+    const notes = osmd.cursor.NotesUnderCursor()
+    const hasRealNote = (notes ?? []).some((n: any) => !n.isRest?.())
+    if (hasRealNote) break
+    advanceCursor()
+    cursorIdx++
+  }
+  updateExpectedPitch()
 }
