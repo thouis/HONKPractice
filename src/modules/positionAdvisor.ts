@@ -1,6 +1,6 @@
-import { TROMBONE_POSITIONS, REST_POSITIONS } from '../data/trombonePositions'
-import type { PositionEntry } from '../types'
+import type { FingeringEntry, InstrumentDef } from '../types'
 import type { HintsMode } from '../ui/controls'
+import type { VoiceMode } from './playback'
 
 // Per cursor step: all pitched MIDI notes sorted DESCENDING (highest first).
 // Rests / all-rest steps → [0] (sentinel).
@@ -24,15 +24,15 @@ function extractMidiChords(
   return chords
 }
 
-function validPositions(midi: number): PositionEntry[] {
-  if (midi === 0) return REST_POSITIONS
-  return TROMBONE_POSITIONS[midi] ?? []
+function validFingerings(midi: number, instrument: InstrumentDef): FingeringEntry[] {
+  if (midi === 0) return instrument.restFingering
+  return instrument.fingerings[midi] ?? []
 }
 
-// Best individual position for a note not in the DP sequence (chord upper notes).
+// Best individual fingering for a note not in the DP sequence (chord upper notes).
 // Returns the preferred entry with the lowest position number, or the first entry.
-function bestSinglePosition(midi: number): PositionEntry | null {
-  const entries = validPositions(midi)
+function bestSingleFingering(midi: number, instrument: InstrumentDef): FingeringEntry | null {
+  const entries = validFingerings(midi, instrument)
   if (entries.length === 0 || entries[0].pos === 0) return null
   const preferred = entries.filter(e => e.preferred)
   const pool = preferred.length > 0 ? preferred : entries
@@ -40,64 +40,34 @@ function bestSinglePosition(midi: number): PositionEntry | null {
 }
 
 // DP on the LOWEST note of each chord (last element after descending sort).
-function runDP(chords: number[][]): number[] {
+export function runDP(chords: number[][], instrument: InstrumentDef): number[] {
   const lowest = chords.map(c => c[c.length - 1])
   const n = lowest.length
   if (n === 0) return []
 
+  // Compute array size from max pos in instrument fingerings.
+  let maxPos = 0
+  for (const entries of Object.values(instrument.fingerings)) {
+    for (const e of entries) { if (e.pos > maxPos) maxPos = e.pos }
+  }
+  const sz = maxPos + 1
+
   const INF = 1e9
-  const prevFrom: number[][] = Array.from({ length: n }, () => new Array(8).fill(-1))
-  const prevCost = new Array(8).fill(INF)
+  const prevFrom: number[][] = Array.from({ length: n }, () => new Array(sz).fill(-1))
+  const prevCost = new Array(sz).fill(INF)
 
-  // Acceptable alternates: specific positions that are reasonable fallbacks
-  const ACCEPTABLE_ALTERNATES = new Set<string>([
-    '3,6',  // partial 3, pos 6 (F3)
-    '4,5',  // partial 4, pos 5 (Bb3)
-    '6,4',  // partial 6, pos 4 (F3)
-  ])
-  const ACCEPTABLE_PENALTY = 1
-  const NONPREFERRED_PENALTY = 10  // heavy penalty for non-acceptable alternates
-
-  // Check if a note has a lower partial available
-  const hasLowerPartial = (midi: number, partial: number): boolean => {
-    const allPositions = validPositions(midi)
-    return allPositions.some(p => p.partial < partial)
-  }
-
-  const getPenalty = (midi: number, e: PositionEntry): number => {
-    let penalty = 0
-    
-    // Penalize high partials (above 5)
-    if (e.partial > 5) {
-      penalty += 2 * (e.partial - 5)  // scales: 6→2, 7→4, 8→6, 9→8, 10→10
-    }
-    
-    // Penalize partial 4 if lower partials are available
-    if (e.partial === 4 && hasLowerPartial(midi, 4)) {
-      penalty += 3
-    }
-    
-    // Penalize non-preferred positions
-    if (!e.preferred) {
-      const key = `${e.partial},${e.pos}`
-      penalty += ACCEPTABLE_ALTERNATES.has(key) ? ACCEPTABLE_PENALTY : NONPREFERRED_PENALTY
-    }
-    
-    return penalty
-  }
-
-  for (const e of validPositions(lowest[0])) {
-    prevCost[e.pos] = getPenalty(lowest[0], e)
+  for (const e of validFingerings(lowest[0], instrument)) {
+    prevCost[e.pos] = instrument.penalty(lowest[0], e)
   }
   const costTable: number[][] = [prevCost.slice()]
 
   for (let i = 1; i < n; i++) {
-    const curCost = new Array(8).fill(INF)
-    for (const e of validPositions(lowest[i])) {
+    const curCost = new Array(sz).fill(INF)
+    for (const e of validFingerings(lowest[i], instrument)) {
       const p = e.pos
-      for (const pe of validPositions(lowest[i - 1])) {
+      for (const pe of validFingerings(lowest[i - 1], instrument)) {
         const pp = pe.pos
-        const c = costTable[i - 1][pp] + Math.abs(p - pp) + getPenalty(lowest[i], e)
+        const c = costTable[i - 1][pp] + instrument.distance(pe, e) + instrument.penalty(lowest[i], e)
         if (c < curCost[p] || (c === curCost[p] && pp < prevFrom[i][p])) {
           curCost[p] = c
           prevFrom[i][p] = pp
@@ -107,7 +77,8 @@ function runDP(chords: number[][]): number[] {
     costTable.push(curCost)
   }
 
-  const lastValid = validPositions(lowest[n - 1]).map(e => e.pos)
+  const lastValid = validFingerings(lowest[n - 1], instrument).map(e => e.pos)
+  if (lastValid.length === 0) return new Array(n).fill(0)
   let bestP = lastValid.reduce((a, b) =>
     costTable[n - 1][a] <= costTable[n - 1][b] ? a : b)
 
@@ -120,20 +91,21 @@ function runDP(chords: number[][]): number[] {
   return result
 }
 
-const LINE_HEIGHT_PX = 14  // vertical spacing between stacked hints
 
 let hintDivs: HTMLDivElement[] = []
 
 export function computeAndRenderHints(
   osmd: import('opensheetmusicdisplay').OpenSheetMusicDisplay,
   container: HTMLElement,
-  mode: HintsMode
+  mode: HintsMode,
+  voiceMode: VoiceMode = 'lowest',
+  instrument: InstrumentDef,
 ): void {
   clearHints()
   if (mode === 0) return
 
   const chords = extractMidiChords(osmd)
-  const dpPositions = runDP(chords)   // one DP position per step, for the lowest note
+  const dpPositions = runDP(chords, instrument)   // one DP position per step, for the lowest note
 
   const pageWidth: number = (osmd as any).Sheet?.pageWidth ?? 180
   const svgEls = Array.from(container.querySelectorAll('svg')) as SVGSVGElement[]
@@ -171,46 +143,47 @@ export function computeAndRenderHints(
         const staffBottomY = (staffTopY + STAFF_HEIGHT) * scaleX
           + svgRect.top - containerRect.top + HINT_PADDING_PX
 
-        // Render one hint per note in the chord.
-        // chord[0] = highest, chord[last] = lowest.
-        // Row 0 is closest to the staff (highest note), row N-1 is furthest (lowest).
-        chord.forEach((midi, row) => {
-          let pos: number
-          let partial: number
-          let alts: PositionEntry[]
+        // Select a single note to hint based on voice mode.
+        // chord is sorted descending: chord[0]=highest, chord[last]=lowest.
+        const asc = [...chord].reverse()  // ascending: asc[0]=lowest
+        let targetMidi: number
+        if (voiceMode === 'highest') {
+          targetMidi = chord[0]
+        } else if (voiceMode === 'middle') {
+          targetMidi = asc[Math.floor((asc.length - 1) / 2)]
+        } else {
+          targetMidi = asc[0]  // 'all' and 'lowest' both show lowest
+        }
+        const isLowest = targetMidi === asc[0]
 
-          if (row === chord.length - 1) {
-            // Lowest note: use DP-chosen position.
-            pos = dpPos
-            const allPos = validPositions(midi)
-            const preferred = allPos.find(e => e.pos === pos)
-            partial = preferred?.partial ?? 0
-            alts = allPos.filter(e => e.pos !== pos)
-          } else {
-            // Upper chord notes: individually best position.
-            const best = bestSinglePosition(midi)
-            if (!best) return
-            pos = best.pos
-            partial = best.partial
-            alts = validPositions(midi).filter(e => e.pos !== pos)
-          }
+        let entry: FingeringEntry, alts: FingeringEntry[]
+        if (isLowest) {
+          const allPos = validFingerings(targetMidi, instrument)
+          entry = allPos.find(e => e.pos === dpPos)
+            ?? { pos: dpPos, label: String(dpPos), preferred: true }
+          alts = allPos.filter(e => e.pos !== dpPos)
+        } else {
+          const best = bestSingleFingering(targetMidi, instrument)
+          if (!best) { osmd.cursor.next(); idx++; continue }
+          entry = best
+          alts = validFingerings(targetMidi, instrument).filter(e => e.pos !== best.pos)
+        }
 
-          const y = staffBottomY + row * LINE_HEIGHT_PX
-
-          const div = document.createElement('div')
-          div.className = 'hint-label'
-          div.style.cssText = `position:absolute;left:${baseX}px;top:${y}px;font-size:11px;color:#1a1a2e;font-weight:bold;pointer-events:none;white-space:nowrap;`
-          if (mode === 2) {
-            div.innerHTML = `${pos}<sup style="font-size:7px;vertical-align:super;">${partial}</sup>`
-          } else {
-            div.textContent = `${pos}`
-          }
-          if (alts.length) {
-            div.title = 'Alt: ' + alts.map(e => `${e.pos}/${e.partial}`).join(', ')
-          }
-          container.appendChild(div)
-          hintDivs.push(div)
-        })
+        const div = document.createElement('div')
+        div.className = 'hint-label'
+        div.style.cssText = `position:absolute;left:${baseX}px;top:${staffBottomY}px;font-size:18px;color:#1a1a2e;font-weight:bold;pointer-events:none;white-space:nowrap;`
+        if (instrument.showPartial && mode === 2 && entry.partial !== undefined) {
+          div.innerHTML = `${entry.label}<sup style="font-size:11px;vertical-align:super;">${entry.partial}</sup>`
+        } else {
+          div.textContent = entry.label
+        }
+        if (alts.length) {
+          div.title = 'Alt: ' + alts.map(e =>
+            e.partial !== undefined ? `${e.label}/${e.partial}` : e.label
+          ).join(', ')
+        }
+        container.appendChild(div)
+        hintDivs.push(div)
       }
     }
 

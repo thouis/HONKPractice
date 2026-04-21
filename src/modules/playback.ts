@@ -4,14 +4,6 @@ import type { NoteEvent } from '../types'
 
 const DEBUG = false
 
-// Sample notes from FluidR3_GM trombone set
-// Filenames use 's' for sharps (e.g. Ds2 = D#2), map to Tone.js note names
-const SAMPLE_MAP: Record<string, string> = {
-  'A1': 'A1.mp3',  'C2': 'C2.mp3',  'D#2': 'Ds2.mp3', 'F#2': 'Fs2.mp3',
-  'A2': 'A2.mp3',  'C3': 'C3.mp3',  'D#3': 'Ds3.mp3', 'F#3': 'Fs3.mp3',
-  'A3': 'A3.mp3',  'C4': 'C4.mp3',  'D#4': 'Ds4.mp3', 'F#4': 'Fs4.mp3',
-  'A4': 'A4.mp3',  'C5': 'C5.mp3',  'D#5': 'Ds5.mp3', 'F#5': 'Fs5.mp3',
-}
 
 export type VoiceMode = 'all' | 'lowest' | 'middle' | 'highest'
 
@@ -26,7 +18,7 @@ let loopRestEnabled = true   // insert one bar of silence before each repeat
 let beatsPerBar = 4
 let beatDenominator = 4  // time sig denominator; whole note / denominator = one click interval
 let voiceMode: VoiceMode = 'all'
-let seekOffsetSec = 0   // transport offset used on next play()
+let seekOffsetSec: number | null = null   // null = no seek; 0 = seeked to beginning
 
 export function setVoiceMode(mode: VoiceMode): void { voiceMode = mode }
 
@@ -39,9 +31,9 @@ function selectVoiceNotes(midiNotes: number[]): number[] {
   return [asc[Math.floor((asc.length - 1) / 2)]]
 }
 
-export function initSampler(baseUrl: string, onLoad: () => void): void {
+export function initSampler(baseUrl: string, sampleMap: Record<string, string>, onLoad: () => void): void {
   const urls: Record<string, string> = {}
-  for (const [note, file] of Object.entries(SAMPLE_MAP)) { urls[note] = file }
+  for (const [note, file] of Object.entries(sampleMap)) { urls[note] = file }
 
   sampler = new Tone.Sampler({
     urls,
@@ -152,7 +144,7 @@ function scheduleEvents(): void {
   Tone.getTransport().cancel()
   const bpm = writtenBpm * tempoRatio
   Tone.getTransport().bpm.value = bpm
-  const secPerBeat = 60 / bpm
+  const secPerBeat = 60 / bpm * 4  // OSMD RealValue fractions are in whole-note units
 
   let prevMeasure = -1
   for (const ev of timeline) {
@@ -218,16 +210,23 @@ export async function play(): Promise<void> {
   await Tone.start()
   await Tone.loaded()   // wait for all buffers regardless of onload callback
   scheduleEvents()
-  Tone.getTransport().start('+0', seekOffsetSec || undefined)
+  Tone.getTransport().start('+0', seekOffsetSec ?? undefined)
 }
 
 export function reschedule(): void {
-  const wasRunning = Tone.getTransport().state === 'started'
-  if (wasRunning) {
+  const state = Tone.getTransport().state
+  if (state === 'started') {
     const pos = Tone.getTransport().position
     Tone.getTransport().cancel()
     scheduleEvents()
     Tone.getTransport().start('+0', pos as any)
+  } else if (state === 'paused') {
+    const pos = Tone.getTransport().position
+    Tone.getTransport().cancel()
+    scheduleEvents()
+    // Leave transport paused; rescheduled events will fire correctly on resume.
+    Tone.getTransport().start('+0', pos as any)
+    Tone.getTransport().pause()
   }
 }
 
@@ -239,7 +238,7 @@ export function stop(): void {
   Tone.getTransport().stop()
   Tone.getTransport().cancel()
   Tone.getTransport().position = 0 as any
-  seekOffsetSec = 0
+  seekOffsetSec = null
 }
 
 export function setTempoRatio(ratio: number): void {
@@ -247,7 +246,7 @@ export function setTempoRatio(ratio: number): void {
   const wasRunning = Tone.getTransport().state === 'started'
   if (wasRunning) {
     const pos = Tone.getTransport().position
-    stop()
+    Tone.getTransport().cancel()
     scheduleEvents()
     Tone.getTransport().start('+0', pos as any)
   } else {
@@ -263,7 +262,7 @@ export function getTimeline(): NoteEvent[] { return timeline }
 export function seekToEvent(evIdx: number): void {
   if (evIdx < 0 || evIdx >= timeline.length) return
   const bpm = writtenBpm * tempoRatio
-  const secPerBeat = 60 / bpm
+  const secPerBeat = 60 / bpm * 4  // OSMD RealValue fractions are in whole-note units
   seekOffsetSec = (timeline[evIdx].fractionStart - timelineOffset) * secPerBeat
   const wasRunning = Tone.getTransport().state === 'started'
   if (wasRunning) {

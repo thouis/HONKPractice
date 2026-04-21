@@ -1,7 +1,11 @@
+import { INSTRUMENTS } from '../data/instruments/index'
+
 export interface SettingsCallbacks {
   onMusicVolume: (v: number) => void
   onMetronomeVolume: (v: number) => void
   onPitchSensitivity: (db: number) => void
+  onInstrumentChange: (id: string) => void
+  initialInstrumentId: string
 }
 
 let overlay: HTMLElement | null = null
@@ -9,6 +13,8 @@ let callbacks: SettingsCallbacks = {
   onMusicVolume: () => {},
   onMetronomeVolume: () => {},
   onPitchSensitivity: () => {},
+  onInstrumentChange: () => {},
+  initialInstrumentId: 'trombone',
 }
 
 // ── Public API ───────────────────────────────────────────────────────────────
@@ -54,6 +60,8 @@ function buildPanel(): void {
   header.append(heading, closeBtn)
 
   // Sliders
+  const instrumentRow = buildInstrumentSelect()
+
   const musicVolumeRow = buildSimpleSlider(
     'Music volume',
     0, 100, 80, 1,
@@ -72,9 +80,38 @@ function buildPanel(): void {
     (v) => callbacks.onPitchSensitivity(v),
   )
 
-  panel.append(header, musicVolumeRow, metronomeVolumeRow, pitchSensitivityRow)
+  panel.append(header, instrumentRow, musicVolumeRow, metronomeVolumeRow, pitchSensitivityRow)
   overlay.appendChild(panel)
   document.body.appendChild(overlay)
+}
+
+// ── Instrument selector ─────────────────────────────────────────────────────
+
+function buildInstrumentSelect(): HTMLElement {
+  const container = document.createElement('div')
+  container.style.cssText = 'margin-bottom:16px;'
+
+  const label = document.createElement('label')
+  label.textContent = 'Instrument'
+  label.style.cssText = 'font-size:0.88rem;color:#cdd6f4;display:block;margin-bottom:6px;'
+
+  const select = document.createElement('select')
+  select.style.cssText =
+    'width:100%;background:#313244;color:#cdd6f4;border:1px solid #45475a;' +
+    'border-radius:4px;padding:6px 8px;font-size:0.9rem;cursor:pointer;'
+
+  for (const def of Object.values(INSTRUMENTS)) {
+    const opt = document.createElement('option')
+    opt.value = def.id
+    opt.textContent = def.name
+    if (def.id === callbacks.initialInstrumentId) opt.selected = true
+    select.appendChild(opt)
+  }
+
+  select.onchange = () => callbacks.onInstrumentChange(select.value)
+
+  container.append(label, select)
+  return container
 }
 
 // ── Slider builders ──────────────────────────────────────────────────────────
