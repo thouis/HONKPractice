@@ -1,6 +1,6 @@
 import { createToolbar, setScoreTitle } from './ui/toolbar'
 import { createControls, updateBpmDisplay, setTempoSlider, setPlayPauseIcon, resetLoopControl,
-         setSelectBtnState, setLoopUI, setPartButton, setInstrumentSelect,
+         setSelectBtnState, setLoopUI, setPartButton, setInstrumentSelect, setHintsMode,
          type HintsMode, type VoiceMode } from './ui/controls'
 import { createScorePanel, getOsmdContainer, getBeatIndicator, setRangeIndicator, clearRangeIndicator } from './ui/scorePanel'
 import { openFilePicker } from './modules/scoreLoader'
@@ -79,6 +79,7 @@ export async function initApp(root: HTMLElement): Promise<void> {
   })
 
   root.append(toolbar, controls, scorePanel)
+  setHintsMode(hintsMode)   // sync button to restored setting
 
   // --- Init subsystems ---
   await initLibraryPanel(async (xml, title) => {

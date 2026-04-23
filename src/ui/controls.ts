@@ -35,6 +35,7 @@ let selectBtn: HTMLButtonElement
 let partBtn: HTMLButtonElement
 let instrumentSelect: HTMLSelectElement
 let loopBtnState = false  // single source of truth for loop button state
+let hintsModeState: HintsMode = 0
 
 export function createControls(cbs: ControlCallbacks): HTMLElement {
   const bar = document.createElement('div')
@@ -85,14 +86,13 @@ export function createControls(cbs: ControlCallbacks): HTMLElement {
   // --- Hints (3-state cycle: off → pos → pos+partial → off) ---
   hintsBtn = document.createElement('button')
   hintsBtn.className = 'btn'
-  let hintsMode: HintsMode = 0
   const HINTS_LABELS = ['Hints: OFF', 'Hints: pos', 'Hints: pos+∂']
   hintsBtn.textContent = HINTS_LABELS[0]
   hintsBtn.onclick = () => {
-    hintsMode = ((hintsMode + 1) % 3) as HintsMode
-    hintsBtn.textContent = HINTS_LABELS[hintsMode]
-    hintsBtn.classList.toggle('btn-active', hintsMode > 0)
-    cbs.onHintsChange(hintsMode)
+    hintsModeState = ((hintsModeState + 1) % 3) as HintsMode
+    hintsBtn.textContent = HINTS_LABELS[hintsModeState]
+    hintsBtn.classList.toggle('btn-active', hintsModeState > 0)
+    cbs.onHintsChange(hintsModeState)
   }
 
   // --- Pitch mode (tri-state: off → show → listen → off) ---
@@ -303,6 +303,14 @@ export function resetLoopControl(totalBars: number): void {
 // Sync the instrument selector to reflect an externally-applied change.
 export function setInstrumentSelect(id: string): void {
   if (instrumentSelect) instrumentSelect.value = id
+}
+
+export function setHintsMode(mode: HintsMode): void {
+  if (!hintsBtn) return
+  hintsModeState = mode
+  const HINTS_LABELS = ['Hints: OFF', 'Hints: pos', 'Hints: pos+∂']
+  hintsBtn.textContent = HINTS_LABELS[mode]
+  hintsBtn.classList.toggle('btn-active', mode > 0)
 }
 
 // Show or hide the Part button and update its label.
