@@ -31,6 +31,8 @@ public/scores/
 # Instrument samples — re-download via scripts/download-samples.sh
 public/samples/
 
-# Scratch / local score files
+# Scratch / local files
 *.mxl
 score.xml
+tofix.txt
+buildfail.txt

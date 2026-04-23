@@ -2,8 +2,8 @@ import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-  base: '/TrombonePractice/',
-  build: { target: 'es2020' },
+  base: '/',
+  build: { target: 'es2022' },
   optimizeDeps: { include: ['opensheetmusicdisplay'] },
   plugins: [
     VitePWA({

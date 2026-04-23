@@ -2,62 +2,39 @@ let overlay: HTMLElement | null = null
 
 const SECTIONS: { heading: string; items: [string, string][] }[] = [
   {
-    heading: 'Transport',
+    heading: 'Playback',
     items: [
-      ['⏮', 'Rewind to start'],
-      ['▶ / ⏸', 'Play / pause'],
-      ['⏹', 'Stop and rewind'],
-      ['Tempo slider', 'Set playback tempo in BPM; resets to score tempo on each load'],
-      ['Click on score', 'Jump to that measure'],
-    ],
-  },
-  {
-    heading: 'Sound',
-    items: [
-      ['Met: OFF/ON', 'Toggle metronome click'],
-      ['Instrument dropdown', 'Choose which instrument\'s samples play back'],
-      ['⚙ Settings', 'Adjust music volume, metronome volume, and pitch sensitivity'],
+      ['⏮  ▶/⏸  ⏹', 'Rewind — play/pause — stop'],
+      ['Tempo slider', 'BPM; resets to score tempo on load'],
+      ['Click score', 'Jump to that measure'],
+      ['Met', 'Metronome on/off'],
+      ['Instrument', 'Choose playback sound'],
     ],
   },
   {
     heading: 'Microphone',
     items: [
-      ['Mic: OFF', 'Microphone off'],
-      ['Mic: Show', 'Show real-time intonation meter while playing along (headphones recommended)'],
-      ['Mic: Listen', 'Practice mode — cursor waits until you play each note correctly; playback is muted'],
-      ['± ¢ field', 'Intonation tolerance in cents for Listen mode (smaller = stricter)'],
+      ['Mic: Show', 'Intonation meter — green/yellow/red as you play along'],
+      ['Mic: Listen', 'Cursor waits until each note is played in tune; playback muted'],
+      ['± ¢', 'Intonation tolerance for Listen mode'],
     ],
   },
   {
-    heading: 'Score display',
+    heading: 'Score & loop',
     items: [
-      ['Hints: OFF/pos/pos+∂', 'Trombone slide-position labels: off, positions only, or positions with partials'],
-      ['Voice: All/Low/Mid/High', 'Which voice to highlight for intonation and hints in chords'],
-      ['Part button', 'Choose which part to display in multi-instrument scores'],
+      ['Hints', 'Position/fingering labels above notes (cycle off → pos → pos+partial)'],
+      ['Voice', 'Which note in a chord to track for intonation'],
+      ['Part', 'Switch parts in a multi-instrument score'],
+      ['Select', 'Click two bars to set a loop range'],
+      ['Loop', 'Toggle looping; bar inputs set range manually'],
+      ['Rest', 'Add a silent bar between repeats'],
     ],
   },
   {
-    heading: 'Loop',
-    items: [
-      ['Select', 'Click two measures on the score to set a loop range'],
-      ['Loop: OFF/ON', 'Toggle looping over the selected range'],
-      ['Bar inputs', 'Manually enter loop start and end bar numbers'],
-      ['Rest: ON/OFF', 'Insert a bar of silence between repeats'],
-    ],
-  },
-  {
-    heading: 'Library & files',
-    items: [
-      ['Library', 'Browse and load built-in scores'],
-      ['Load File', 'Open a MusicXML (.xml) or compressed MusicXML (.mxl) file from your device'],
-    ],
-  },
-  {
-    heading: 'Keyboard shortcuts',
+    heading: 'Keyboard',
     items: [
       ['Space', 'Play / pause'],
-      ['Escape', 'Stop and rewind'],
-      ['D', 'Toggle debug panel'],
+      ['Esc', 'Stop'],
     ],
   },
 ]
