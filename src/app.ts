@@ -188,6 +188,7 @@ async function renderScore(xml: string, titleHint: string): Promise<void> {
   selectState = 'idle'
   selectFirstMeasure = -1
   clearSelectAnchor()
+  clearSelectHover()
   setSelectBtnState('idle')
   getOsmdContainer().style.cursor = ''
   const total = getMeasureCount()

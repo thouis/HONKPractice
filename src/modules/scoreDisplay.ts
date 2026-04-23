@@ -49,6 +49,7 @@ export function getRenderedRange(): { from: number; to: number } {
 export function renderOsmdScore(): void {
   if (!osmdInstance) return
   renderedFrom = 1; renderedTo = 9999
+  osmdInstance.setOptions({ drawFromMeasureNumber: 1, drawUpToMeasureNumber: 9999 })
   osmdInstance.render()
   osmdInstance.enableOrDisableCursors(true)
   osmdInstance.cursor.show()

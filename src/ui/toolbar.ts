@@ -9,7 +9,7 @@ export function createToolbar(
 
   const title = document.createElement('span')
   title.className = 'app-title'
-  title.textContent = 'BandPractice'
+  title.textContent = `BandPractice (${__GIT_HASH__})`
 
   const scoreTitle = document.createElement('span')
   scoreTitle.className = 'score-title'

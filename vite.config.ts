@@ -1,9 +1,15 @@
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { execSync } from 'child_process'
+
+const gitHash = (() => {
+  try { return execSync('git rev-parse --short HEAD').toString().trim() } catch { return 'dev' }
+})()
 
 export default defineConfig({
   base: '/',
   build: { target: 'es2022' },
+  define: { __GIT_HASH__: JSON.stringify(gitHash) },
   optimizeDeps: { include: ['opensheetmusicdisplay'] },
   plugins: [
     VitePWA({
