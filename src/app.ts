@@ -19,7 +19,7 @@ import { startPitchDetection, stopPitchDetection, setExpectedPitch,
          setPitchMeterAnchor, setPitchMeterThreshold, setPitchSensitivity } from './modules/pitchDetector'
 import { startPracticeMode, stopPracticeMode, setPracticeExpectedPitch, setPracticeThreshold } from './modules/practiceMode'
 import { practiceAdvanceStep } from './modules/practiceAdvance'
-import { saveScore, loadScore, saveSettings, loadSettings, saveScoreLoop, loadScoreLoop } from './modules/storage'
+import { saveScore, loadScore, saveSettings, loadSettings, saveScoreLoop } from './modules/storage'
 import { toggleDebugPanel, debugLog } from './modules/debugPanel'
 import { initLibraryPanel, openLibraryPanel } from './ui/libraryPanel'
 import { notify } from './ui/notify'
@@ -193,18 +193,10 @@ async function renderScore(xml: string, titleHint: string): Promise<void> {
 
   // Always start with full score / idle selection; loop range numbers are
   // pre-filled from saved state but not auto-activated.
-  const savedLoop = loadScoreLoop(xml)
   loopOn = false
   setLoopEnabled(false)
   clearRangeIndicator()
-  if (savedLoop) {
-    const from = Math.max(1, savedLoop.from)
-    const to   = Math.min(savedLoop.to, total)
-    resetLoopControl(total)
-    setLoopUI(false, from, to)   // show the numbers, but loop OFF
-  } else {
-    resetLoopControl(total)
-  }
+  resetLoopControl(total)
 
   buildTimeline(osmd)
   if (getTimeline().length === 0) notify('No playable notes found in this score', 'warning')
