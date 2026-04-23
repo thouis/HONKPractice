@@ -1,6 +1,6 @@
-# TrombonePractice
+# BandPractice
 
-A browser-based practice tool for trombone and other band instruments. Load a MusicXML score, play it back at any tempo, watch slide-position hints update in real time, and use the microphone to check your intonation or drive an interactive note-by-note practice mode.
+A browser-based practice tool for band instruments. Load a MusicXML score, play it back at any tempo, and use the microphone to check your intonation or drive an interactive note-by-note practice mode. Trombone players get real-time slide-position hints; support for other instrument fingering/position systems is planned.
 
 ## Features
 
@@ -9,7 +9,7 @@ A browser-based practice tool for trombone and other band instruments. Load a Mu
 - **Playback** — Tone.js sample-based synthesis; tempo slider 30–150%; count-in; click-to-seek
 - **Metronome** — locked to score tempo and time signature, with audible click and visual beat indicator
 - **Loop** — click-drag range selection on the score or manual bar inputs; optional rest bar between repeats
-- **Position advisor** — dynamic-programming slide-position hints above note heads for trombone; shows partial positions optionally
+- **Position advisor** — dynamic-programming slide-position hints above note heads (trombone); partial positions optional. Keyed instruments show no hints yet — see TODO below
 - **Pitch detection** — microphone → [pitchy](https://github.com/ianprime0509/pitchy) (McLeod Pitch Method, ~60 fps) with two modes:
   - **Mic: Show** — scrolling colour-coded intonation meter (green ±10 ¢, yellow 11–25 ¢, red >25 ¢) while playing along to playback
   - **Mic: Listen** — interactive practice mode; cursor waits for you to play each note correctly before advancing; playback is muted to avoid microphone bleed
@@ -21,9 +21,11 @@ A browser-based practice tool for trombone and other band instruments. Load a Mu
 
 ```bash
 npm install
-bash scripts/download-samples.sh   # downloads ~66 mp3 files into public/samples/
+bash scripts/download-samples.sh   # one-time: downloads ~66 mp3 files into public/samples/
 npm run dev                         # http://localhost:5173
 ```
+
+Samples are not committed to the repository. `scripts/download-samples.sh` runs automatically as a `prebuild` step (i.e. `npm run build`), so CI and Cloudflare Pages pick them up without manual intervention.
 
 ### Build
 
@@ -63,6 +65,11 @@ The app is a fully static PWA. Deploy the contents of `dist/` to any static host
 | [vitest](https://vitest.dev/) | Unit test runner | MIT |
 
 ## Project structure
+
+## TODO
+
+- [ ] Add valve/key fingering hints for trumpet (and by extension other keyed instruments) — same DP framework as trombone, needs fingering tables
+- [ ] Cloudflare Pages deployment guide (wrangler command for uploading scores separately)
 
 ```
 src/

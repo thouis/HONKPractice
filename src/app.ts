@@ -24,6 +24,7 @@ import { toggleDebugPanel, debugLog } from './modules/debugPanel'
 import { initLibraryPanel, openLibraryPanel } from './ui/libraryPanel'
 import { notify } from './ui/notify'
 import { initSettingsPanel, openSettingsPanel } from './ui/settingsPanel'
+import { openHelpPanel } from './ui/helpPanel'
 import { DEFAULT_SCORE_XML } from './data/defaultScore'
 import { pickPart } from './ui/partPicker'
 
@@ -59,7 +60,7 @@ export async function initApp(root: HTMLElement): Promise<void> {
     onMetronomeVolume: setMetronomeVolume,
     onPitchSensitivity: setPitchSensitivity,
   })
-  const toolbar = createToolbar(handleLoadScore, openLibraryPanel, openSettingsPanel)
+  const toolbar = createToolbar(handleLoadScore, openLibraryPanel, openSettingsPanel, openHelpPanel)
   const scorePanel = createScorePanel()
   const controls = createControls({
     onPlayPause: handlePlayPause,

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "bash scripts/download-samples.sh",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run"

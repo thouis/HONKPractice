@@ -29,15 +29,7 @@ dist-ssr
 public/scores/
 
 # Instrument samples — re-download via scripts/download-samples.sh
-# (trombone samples already committed; others excluded to keep repo small)
-public/samples/alto_sax/
-public/samples/baritone_sax/
-public/samples/clarinet/
-public/samples/flute/
-public/samples/french_horn/
-public/samples/tenor_sax/
-public/samples/trumpet/
-public/samples/tuba/
+public/samples/
 
 # Scratch / local score files
 *.mxl

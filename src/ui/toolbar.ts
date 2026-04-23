@@ -2,13 +2,14 @@ export function createToolbar(
   onLoad: () => void,
   onLibrary: () => void,
   onSettings: () => void,
+  onHelp: () => void,
 ): HTMLElement {
   const bar = document.createElement('div')
   bar.className = 'toolbar'
 
   const title = document.createElement('span')
   title.className = 'app-title'
-  title.textContent = 'TrombonePractice'
+  title.textContent = 'BandPractice'
 
   const scoreTitle = document.createElement('span')
   scoreTitle.className = 'score-title'
@@ -31,7 +32,13 @@ export function createToolbar(
   settingsBtn.title = 'Settings'
   settingsBtn.onclick = onSettings
 
-  bar.append(title, scoreTitle, libraryBtn, loadBtn, settingsBtn)
+  const helpBtn = document.createElement('button')
+  helpBtn.textContent = '?'
+  helpBtn.className = 'btn'
+  helpBtn.title = 'Help'
+  helpBtn.onclick = onHelp
+
+  bar.append(title, scoreTitle, libraryBtn, loadBtn, settingsBtn, helpBtn)
   return bar
 }
 
