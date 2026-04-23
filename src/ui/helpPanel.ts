@@ -7,8 +7,32 @@ const SECTIONS: { heading: string; items: [string, string][] }[] = [
       ['⏮  ▶/⏸  ⏹', 'Rewind — play/pause — stop'],
       ['Tempo slider', 'BPM; resets to score tempo on load'],
       ['Click score', 'Jump to that measure'],
+    ],
+  },
+  {
+    heading: 'Select & loop',
+    items: [
+      ['Select bars', 'Click two bars on the score to set a range'],
+      ['Show all', 'Clear the selection and show the full score'],
+      ['Part', 'Switch parts in a multi-instrument score'],
+      ['Loop', 'Toggle looping over the selected range'],
+      ['Bar inputs', 'Set loop range manually by bar number'],
+      ['Rest', 'Add a silent bar between repeats'],
+    ],
+  },
+  {
+    heading: 'Sound',
+    items: [
       ['Met', 'Metronome on/off'],
       ['Instrument', 'Choose playback sound'],
+      ['⚙ Settings', 'Music volume, metronome volume, pitch sensitivity'],
+    ],
+  },
+  {
+    heading: 'Score display',
+    items: [
+      ['Hints', 'Position/fingering labels above notes (cycle off → pos → pos+partial)'],
+      ['Voice', 'Which note in a chord to track for intonation and hints'],
     ],
   },
   {
@@ -20,14 +44,10 @@ const SECTIONS: { heading: string; items: [string, string][] }[] = [
     ],
   },
   {
-    heading: 'Score & loop',
+    heading: 'Library & files',
     items: [
-      ['Hints', 'Position/fingering labels above notes (cycle off → pos → pos+partial)'],
-      ['Voice', 'Which note in a chord to track for intonation'],
-      ['Part', 'Switch parts in a multi-instrument score'],
-      ['Select', 'Click two bars to set a loop range'],
-      ['Loop', 'Toggle looping; bar inputs set range manually'],
-      ['Rest', 'Add a silent bar between repeats'],
+      ['Library', 'Browse and load built-in scores'],
+      ['Load File', 'Open a MusicXML (.xml or .mxl) file from your device'],
     ],
   },
   {
