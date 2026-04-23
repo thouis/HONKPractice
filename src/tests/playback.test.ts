@@ -164,10 +164,10 @@ describe('setTempoRatio() position preservation (Bug 1 fix)', () => {
   })
 })
 
-describe('reschedule() when paused (Bug 6 fix)', () => {
+describe('reschedule() when paused', () => {
   beforeEach(resetTransport)
 
-  it('cancels, reschedules, and re-pauses at the same position', async () => {
+  it('cancels and reschedules without touching transport state', async () => {
     const { reschedule } = await import('../modules/playback')
     transportState.value = 'paused'
     mockTransport.position = '0:1:0'
@@ -175,8 +175,8 @@ describe('reschedule() when paused (Bug 6 fix)', () => {
     reschedule()
 
     expect(mockTransport.cancel).toHaveBeenCalled()
-    expect(mockTransport.start).toHaveBeenCalledWith('+0', '0:1:0')
-    expect(mockTransport.pause).toHaveBeenCalled()
+    expect(mockTransport.start).not.toHaveBeenCalled()
+    expect(mockTransport.pause).not.toHaveBeenCalled()
   })
 
   it('does nothing when transport is stopped', async () => {

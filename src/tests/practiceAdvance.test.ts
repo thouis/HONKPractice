@@ -53,7 +53,7 @@ function makeDefaultDeps(osmd: any) {
     resetCursor:          vi.fn(() => { osmd.cursor.reset() }),
     scrollCursorIntoView: vi.fn(),
     updateExpectedPitch:  vi.fn(),
-    showPracticeDone:     vi.fn(),
+
   }
 }
 
@@ -143,13 +143,13 @@ describe('practiceAdvanceStep – cursor logic', () => {
     expect(state.cursorIdx).toBe(0)
   })
 
-  it('calls showPracticeDone when end is reached and not looping', () => {
+  it('stays at end when end is reached and not looping', () => {
     const osmd = makeMockOsmd([true])
     const state: PracticeAdvanceState = { cursorIdx: 0, loopOn: false }
 
     const deps = makeDeps(osmd)
     practiceAdvanceStep(state, deps)
 
-    expect(deps.showPracticeDone).toHaveBeenCalled()
+    expect(deps.resetCursor).not.toHaveBeenCalled()
   })
 })

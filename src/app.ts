@@ -639,20 +639,7 @@ function practiceAdvance(): void {
     resetCursor,
     scrollCursorIntoView,
     updateExpectedPitch,
-    showPracticeDone,
   })
   cursorIdx = state.cursorIdx
 }
 
-function showPracticeDone(): void {
-  const container = getOsmdContainer()
-  const el = document.createElement('div')
-  el.textContent = 'Done!'
-  el.style.cssText =
-    'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);' +
-    'font-size:3rem;font-weight:bold;color:#a6e3a1;text-shadow:0 0 20px #a6e3a1;' +
-    'pointer-events:none;opacity:1;transition:opacity 1s;z-index:100;'
-  container.appendChild(el)
-  requestAnimationFrame(() => requestAnimationFrame(() => { el.style.opacity = '0' }))
-  el.addEventListener('transitionend', () => el.remove())
-}

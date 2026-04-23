@@ -11,7 +11,6 @@ export interface PracticeAdvanceDeps {
   resetCursor:           () => void
   scrollCursorIntoView:  () => void
   updateExpectedPitch:   () => void
-  showPracticeDone:      () => void
 }
 
 export function isTieContinuation(n: any): boolean {
@@ -28,7 +27,6 @@ export function practiceAdvanceStep(
 
   if (osmd.cursor.iterator.EndReached) {
     if (state.loopOn) { deps.resetCursor(); state.cursorIdx = 0; deps.updateExpectedPitch() }
-    else deps.showPracticeDone()
     return
   }
 
@@ -50,10 +48,9 @@ export function practiceAdvanceStep(
     state.cursorIdx++
     skipped++
   }
-  // If we hit the end during rest-skipping, loop or signal done.
+  // If we hit the end during rest-skipping, loop or stay at end.
   if (osmd.cursor.iterator.EndReached) {
     if (state.loopOn) { deps.resetCursor(); state.cursorIdx = 0 }
-    else deps.showPracticeDone()
   }
   deps.scrollCursorIntoView()
   deps.updateExpectedPitch()
