@@ -531,9 +531,10 @@ async function handlePitchModeChange(mode: 'off' | 'show' | 'listen'): Promise<v
       // Skip forward past any leading rests
       const osmd = getOsmd()
       if (osmd && currentNoteHz() === 0) {
-        while (!osmd.cursor.iterator.EndReached) {
+        let skipped = 0
+        while (!osmd.cursor.iterator.EndReached && skipped < 512) {
           if ((osmd.cursor.NotesUnderCursor() ?? []).some((n: any) => !n.isRest?.())) break
-          advanceCursor(); cursorIdx++
+          advanceCursor(); cursorIdx++; skipped++
         }
         updateExpectedPitch()
       }

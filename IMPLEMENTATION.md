@@ -105,9 +105,8 @@ Currently set to `/TrombonePractice/` — update to `/` (or the Cloudflare Pages
 - Settings silently not saved on localStorage quota exceeded (other storage errors do toast)
 
 **Bugs**
-- `playback.ts` `play()`: `seekOffsetSec ?? undefined` drops `0` (falsy), so seek-to-start is broken — should be `seekOffsetSec !== null ? seekOffsetSec : undefined`
-- `playback.ts` `reschedule()`: calls `transport.pause()` without waiting for state to settle after `transport.start()`, can leave transport inconsistent when paused
-- `practiceAdvance.ts`: rest-skip while loop has no termination guard if cursor gets stuck
+- `playback.ts` `reschedule()` when paused: previously did a start+pause dance that could leave transport in inconsistent state — now just cancels and reschedules without touching transport state ✓ fixed
+- `practiceAdvance.ts` and `app.ts`: rest-skip while loops now have a 512-step guard ✓ fixed
 
 **Code quality**
 - Voice selection (pick lowest/middle/highest MIDI from chord) is duplicated between `app.ts:currentNoteHz()` and `playback.ts:selectVoiceNotes()` — extract to a shared util

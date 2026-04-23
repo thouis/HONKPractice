@@ -224,12 +224,11 @@ export function reschedule(): void {
     scheduleEvents()
     Tone.getTransport().start('+0', pos as any)
   } else if (state === 'paused') {
-    const pos = Tone.getTransport().position
+    // Cancel and reschedule without touching transport state — position is preserved
+    // while paused and events fire correctly from that position on resume.
     Tone.getTransport().cancel()
+    Tone.getTransport().bpm.value = writtenBpm * tempoRatio
     scheduleEvents()
-    // Leave transport paused; rescheduled events will fire correctly on resume.
-    Tone.getTransport().start('+0', pos as any)
-    Tone.getTransport().pause()
   }
 }
 

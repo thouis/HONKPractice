@@ -35,7 +35,9 @@ export function practiceAdvanceStep(
   deps.advanceCursor()
   state.cursorIdx++
   // Skip rests and tie continuations automatically.
-  while (!osmd.cursor.iterator.EndReached) {
+  const MAX_SKIP = 512
+  let skipped = 0
+  while (!osmd.cursor.iterator.EndReached && skipped < MAX_SKIP) {
     const notes = osmd.cursor.NotesUnderCursor()
     const pitched = (notes ?? []).filter((n: any) => !n.isRest?.())
     const skip = pitched.length === 0 || pitched.every(isTieContinuation)
@@ -46,6 +48,7 @@ export function practiceAdvanceStep(
     if (!skip) break
     deps.advanceCursor()
     state.cursorIdx++
+    skipped++
   }
   // If we hit the end during rest-skipping, loop or signal done.
   if (osmd.cursor.iterator.EndReached) {
