@@ -7,7 +7,7 @@ const SECTIONS: { heading: string; items: [string, string][] }[] = [
       ['⏮', 'Rewind to start'],
       ['▶ / ⏸', 'Play / pause'],
       ['⏹', 'Stop and rewind'],
-      ['Tempo slider', 'Adjust playback speed (30–150% of written tempo)'],
+      ['Tempo slider', 'Set playback tempo in BPM; resets to score tempo on each load'],
       ['Click on score', 'Jump to that measure'],
     ],
   },

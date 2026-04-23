@@ -1,5 +1,5 @@
 import { createToolbar, setScoreTitle } from './ui/toolbar'
-import { createControls, updateBpmDisplay, setPlayPauseIcon, resetLoopControl,
+import { createControls, updateBpmDisplay, setTempoSlider, setPlayPauseIcon, resetLoopControl,
          setSelectBtnState, setLoopUI, setPartButton, setInstrumentSelect,
          type HintsMode, type VoiceMode } from './ui/controls'
 import { createScorePanel, getOsmdContainer, getBeatIndicator, setRangeIndicator, clearRangeIndicator } from './ui/scorePanel'
@@ -48,7 +48,6 @@ let selectHoverEl: HTMLElement | null = null    // highlight that tracks mouse h
 
 export async function initApp(root: HTMLElement): Promise<void> {
   const settings = loadSettings()
-  const savedTempoRatio: number = (settings.tempoRatio as number) ?? 1.0
   hintsMode = ((settings.hintsMode as HintsMode) ?? 0)
   metronomeOn = (settings.metronomeOn as boolean) ?? false
   const savedInstrumentId = (settings.instrumentId as string) ?? DEFAULT_INSTRUMENT
@@ -143,8 +142,6 @@ export async function initApp(root: HTMLElement): Promise<void> {
   // Load saved score, or fall back to the built-in default.
   const savedXml = loadScore()
   await renderScore(savedXml ?? DEFAULT_SCORE_XML, savedXml ? 'Restored score' : 'C Major Scale')
-
-  handleTempoChange(savedTempoRatio)
 }
 
 async function handleLoadScore(): Promise<void> {
@@ -233,7 +230,10 @@ async function renderScore(xml: string, titleHint: string): Promise<void> {
     if (currentXml) saveScoreLoop(currentXml, { enabled: false, from: 1, to: total })
   }
   notePixelPositions = buildCursorPixelPositions(getOsmdContainer())
-  updateBpmDisplay(getWrittenBpm() * getTempoRatio())
+  setTempoRatio(1.0)
+  const writtenBpm = getWrittenBpm()
+  setTempoSlider(writtenBpm)
+  updateBpmDisplay(writtenBpm)
 
   const container = getOsmdContainer()
   computeAndRenderHints(osmd, container, hintsMode, currentVoice, currentInstrument)
@@ -421,25 +421,23 @@ function handleStop(): void {
 }
 
 
-function handleTempoChange(ratio: number): void {
-  setTempoRatio(ratio)
-  const bpm = getWrittenBpm() * ratio
+function handleTempoChange(bpm: number): void {
+  setTempoRatio(bpm / getWrittenBpm())
   updateBpmDisplay(bpm)
-  saveSettings({ tempoRatio: ratio, hintsMode, metronomeOn, instrumentId: currentInstrument.id })
 }
 
 function handleMetronomeToggle(on: boolean): void {
   metronomeOn = on
   setMetronomeEnabled(on)
   reschedule()
-  saveSettings({ tempoRatio: getTempoRatio(), hintsMode, metronomeOn, instrumentId: currentInstrument.id })
+  saveSettings({ hintsMode, metronomeOn, instrumentId: currentInstrument.id })
 }
 
 function handleHintsChange(mode: HintsMode): void {
   hintsMode = mode
   const osmd = getOsmd()
   if (osmd) computeAndRenderHints(osmd, getOsmdContainer(), mode, currentVoice, currentInstrument)
-  saveSettings({ tempoRatio: getTempoRatio(), hintsMode: mode, metronomeOn, instrumentId: currentInstrument.id })
+  saveSettings({ hintsMode: mode, metronomeOn, instrumentId: currentInstrument.id })
 }
 
 // Returns Hz of the selected voice note under cursor, or 0.
@@ -622,13 +620,13 @@ function applyInstrument(id: string): void {
   initSampler(baseUrl, currentInstrument.sampleMap, () => {})
   const osmd = getOsmd()
   if (osmd) computeAndRenderHints(osmd, getOsmdContainer(), hintsMode, currentVoice, currentInstrument)
-  saveSettings({ tempoRatio: getTempoRatio(), hintsMode, metronomeOn, instrumentId: id })
+  saveSettings({ hintsMode, metronomeOn, instrumentId: id })
   setInstrumentSelect(id)
 }
 
 function handleInstrumentChange(id: string): void {
   applyInstrument(id)
-  saveSettings({ tempoRatio: getTempoRatio(), hintsMode, metronomeOn, instrumentId: id })
+  saveSettings({ hintsMode, metronomeOn, instrumentId: id })
 }
 
 

@@ -7,7 +7,7 @@ export type VoiceMode = 'all' | 'lowest' | 'middle' | 'highest'
 export interface ControlCallbacks {
   onPlayPause: () => void
   onStop: () => void
-  onTempoChange: (ratio: number) => void
+  onTempoChange: (bpm: number) => void
   onMetronomeToggle: (on: boolean) => void
   onHintsChange: (mode: HintsMode) => void
   onPitchModeChange: (mode: 'off' | 'show' | 'listen') => void
@@ -64,14 +64,11 @@ export function createControls(cbs: ControlCallbacks): HTMLElement {
   bpmDisplay.textContent = '120 BPM'
   tempoSlider = document.createElement('input')
   tempoSlider.type = 'range'
-  tempoSlider.min = '30'
-  tempoSlider.max = '150'
-  tempoSlider.value = '100'
+  tempoSlider.min = '20'
+  tempoSlider.max = '300'
+  tempoSlider.value = '120'
   tempoSlider.style.width = '120px'
-  tempoSlider.oninput = () => {
-    const ratio = parseInt(tempoSlider.value) / 100
-    cbs.onTempoChange(ratio)
-  }
+  tempoSlider.oninput = () => cbs.onTempoChange(parseInt(tempoSlider.value))
 
   // --- Metronome ---
   metBtn = document.createElement('button')
@@ -248,6 +245,11 @@ export function createControls(cbs: ControlCallbacks): HTMLElement {
 
 export function updateBpmDisplay(bpm: number): void {
   if (bpmDisplay) bpmDisplay.textContent = `${Math.round(bpm)} BPM`
+}
+
+export function setTempoSlider(bpm: number): void {
+  if (!tempoSlider) return
+  tempoSlider.value = String(Math.round(Math.max(20, Math.min(300, bpm))))
 }
 
 export function setPlayPauseIcon(playing: boolean): void {
