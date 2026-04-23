@@ -211,7 +211,7 @@ export function createControls(cbs: ControlCallbacks): HTMLElement {
 
   // --- Select range ---
   selectBtn = document.createElement('button')
-  selectBtn.textContent = 'Select'
+  selectBtn.textContent = 'Select bars'
   selectBtn.className = 'btn'
   selectBtn.onclick = cbs.onSelectClick
 
@@ -237,8 +237,9 @@ export function createControls(cbs: ControlCallbacks): HTMLElement {
   instrumentSelect.onchange = () => cbs.onInstrumentChange(instrumentSelect.value)
 
   bar.append(rewindBtn, playPauseBtn, stopBtn, tempoLabel, tempoSlider, bpmDisplay,
+    selectBtn, partBtn,
     metBtn, hintsBtn, voiceBtn, pitchBtn, thresholdLabel, thresholdInput, thresholdUnit,
-    loopBtn, loopFromInput, loopSep, loopToInput, loopRestBtn, selectBtn, partBtn,
+    loopBtn, loopFromInput, loopSep, loopToInput, loopRestBtn,
     instrumentSelect)
   return bar
 }
@@ -261,7 +262,7 @@ export type SelectBtnState = 'idle' | 'selecting' | 'active'
 export function setSelectBtnState(state: SelectBtnState): void {
   if (!selectBtn) return
   const labels: Record<SelectBtnState, string> = {
-    idle:      'Select',
+    idle:      'Select bars',
     selecting: 'Cancel',
     active:    'Show all',
   }

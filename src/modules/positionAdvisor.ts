@@ -1,6 +1,7 @@
 import type { FingeringEntry, InstrumentDef } from '../types'
 import type { HintsMode } from '../ui/controls'
 import type { VoiceMode } from './playback'
+import { getRenderedRange } from './scoreDisplay'
 
 // Per cursor step: all pitched MIDI notes sorted DESCENDING (highest first).
 // Rests / all-rest steps → [0] (sentinel).
@@ -117,10 +118,17 @@ export function computeAndRenderHints(
   const STAFF_HEIGHT = 4   // OSMD staff-space units, top line → bottom line
   const HINT_PADDING_PX = 4
 
+  const { from: visFrom, to: visTo } = getRenderedRange()
+
   osmd.cursor.reset()
   let idx = 0
 
   while (!osmd.cursor.iterator.EndReached) {
+    // CurrentMeasureIndex is 0-based; rendered range is 1-based.
+    const measureNum = osmd.cursor.iterator.CurrentMeasureIndex + 1
+    if (measureNum < visFrom || measureNum > visTo) {
+      osmd.cursor.next(); idx++; continue
+    }
     const gnotes: any[] = (osmd.cursor as any).GNotesUnderCursor?.() ?? []
     const chord = chords[idx]            // sorted descending (highest first)
     const dpPos = dpPositions[idx]       // DP-chosen position for the lowest note

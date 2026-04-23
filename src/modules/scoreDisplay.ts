@@ -39,8 +39,16 @@ function fixGlissandoStartNotes(): void {
   }
 }
 
+let renderedFrom = 1
+let renderedTo = 9999
+
+export function getRenderedRange(): { from: number; to: number } {
+  return { from: renderedFrom, to: renderedTo }
+}
+
 export function renderOsmdScore(): void {
   if (!osmdInstance) return
+  renderedFrom = 1; renderedTo = 9999
   osmdInstance.render()
   osmdInstance.enableOrDisableCursors(true)
   osmdInstance.cursor.show()
@@ -90,6 +98,7 @@ export function renderRange(from: number, to: number): void {
     osmdInstance.setOptions({ drawFromMeasureNumber: 1, drawUpToMeasureNumber: 9999 })
     osmdInstance.render()
   }
+  renderedFrom = from; renderedTo = to
   osmdInstance.setOptions({ drawFromMeasureNumber: from, drawUpToMeasureNumber: to })
   osmdInstance.render()
   osmdInstance.enableOrDisableCursors(true)
