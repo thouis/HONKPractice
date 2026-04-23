@@ -22,3 +22,23 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.env.local
+.env*.local
+
+# Score files — copyright status uncertain; deploy separately to Cloudflare
+public/scores/
+
+# Instrument samples — re-download via scripts/download-samples.sh
+# (trombone samples already committed; others excluded to keep repo small)
+public/samples/alto_sax/
+public/samples/baritone_sax/
+public/samples/clarinet/
+public/samples/flute/
+public/samples/french_horn/
+public/samples/tenor_sax/
+public/samples/trumpet/
+public/samples/tuba/
+
+# Scratch / local score files
+*.mxl
+score.xml

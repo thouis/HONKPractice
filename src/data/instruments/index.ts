@@ -1,8 +1,18 @@
 import { tromboneDef } from './trombone'
+import { trumpetDef, frenchHornDef, tubaDef, fluteDef,
+         clarinetDef, altoSaxDef, tenorSaxDef, bariSaxDef } from './keyed'
 import type { InstrumentDef } from '../../types'
 
 export const INSTRUMENTS: Record<string, InstrumentDef> = {
-  trombone: tromboneDef,
+  trombone:     tromboneDef,
+  trumpet:      trumpetDef,
+  french_horn:  frenchHornDef,
+  tuba:         tubaDef,
+  flute:        fluteDef,
+  clarinet:     clarinetDef,
+  alto_sax:     altoSaxDef,
+  tenor_sax:    tenorSaxDef,
+  baritone_sax: bariSaxDef,
 }
 
 export const DEFAULT_INSTRUMENT = 'trombone'

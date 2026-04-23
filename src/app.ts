@@ -1,14 +1,15 @@
 import { createToolbar, setScoreTitle } from './ui/toolbar'
 import { createControls, updateBpmDisplay, setPlayPauseIcon, resetLoopControl,
-         setSelectBtnState, setLoopUI, type HintsMode, type VoiceMode } from './ui/controls'
+         setSelectBtnState, setLoopUI, setPartButton, setInstrumentSelect,
+         type HintsMode, type VoiceMode } from './ui/controls'
 import { createScorePanel, getOsmdContainer, getBeatIndicator, setRangeIndicator, clearRangeIndicator } from './ui/scorePanel'
 import { openFilePicker } from './modules/scoreLoader'
-import { initDisplay, loadAndRender, getOsmd, resetCursor, advanceCursor,
+import { initDisplay, loadOsmdScore, renderOsmdScore, getOsmd, resetCursor, advanceCursor,
          getMeasureCount, renderRange, initScrollSuppression, scrollCursorIntoView,
-         buildCursorPixelPositions } from './modules/scoreDisplay'
+         buildCursorPixelPositions, getPartNames, setVisibleParts } from './modules/scoreDisplay'
 import { initSampler, buildTimeline, play, pause, stop, setTempoRatio,
          getWrittenBpm, getTempoRatio, getTransportState, onCursorAdvance,
-         setLoopEnabled, setLoopRestEnabled, setVoiceMode, setMusicVolume,
+         setLoopEnabled, setLoopRestEnabled, setVoiceMode, setMusicVolume, setMusicMuted,
          getTimeline, seekToEvent, reschedule } from './modules/playback'
 import { initMetronome, setMetronomeEnabled, setMetronomeVolume } from './modules/metronome'
 import { computeAndRenderHints } from './modules/positionAdvisor'
@@ -21,18 +22,20 @@ import { practiceAdvanceStep } from './modules/practiceAdvance'
 import { saveScore, loadScore, saveSettings, loadSettings, saveScoreLoop, loadScoreLoop } from './modules/storage'
 import { toggleDebugPanel, debugLog } from './modules/debugPanel'
 import { initLibraryPanel, openLibraryPanel } from './ui/libraryPanel'
+import { notify } from './ui/notify'
 import { initSettingsPanel, openSettingsPanel } from './ui/settingsPanel'
 import { DEFAULT_SCORE_XML } from './data/defaultScore'
+import { pickPart } from './ui/partPicker'
 
 let hintsMode: HintsMode = 0
 let metronomeOn = false
 let scoreLoaded = false
-let micOn = false
-let practiceOn = false
+let pitchMode: 'off' | 'show' | 'listen' = 'off'
 let loopOn = false
 let currentVoice: VoiceMode = 'all'
 let currentInstrument: InstrumentDef = INSTRUMENTS[DEFAULT_INSTRUMENT]
 let currentXml = ''   // for per-score loop memory
+let currentPartIndices: number[] | null = null  // null = all parts
 
 // Module-level so handleStop can reset it without closure issues.
 let cursorIdx = 0
@@ -55,8 +58,6 @@ export async function initApp(root: HTMLElement): Promise<void> {
     onMusicVolume:     setMusicVolume,
     onMetronomeVolume: setMetronomeVolume,
     onPitchSensitivity: setPitchSensitivity,
-    onInstrumentChange: handleInstrumentChange,
-    initialInstrumentId: currentInstrument.id,
   })
   const toolbar = createToolbar(handleLoadScore, openLibraryPanel, openSettingsPanel)
   const scorePanel = createScorePanel()
@@ -66,13 +67,15 @@ export async function initApp(root: HTMLElement): Promise<void> {
     onTempoChange: handleTempoChange,
     onMetronomeToggle: handleMetronomeToggle,
     onHintsChange: handleHintsChange,
-    onMicToggle: handleMicToggle,
-    onPracticeToggle: handlePracticeToggle,
+    onPitchModeChange: handlePitchModeChange,
     onPracticeThresholdChange: handlePracticeThresholdChange,
     onLoopChange: handleLoopChange,
     onLoopRestChange: setLoopRestEnabled,
     onVoiceChange: handleVoiceChange,
     onSelectClick: handleSelectClick,
+    onPartClick: handlePartClick,
+    onInstrumentChange: handleInstrumentChange,
+    initialInstrumentId: currentInstrument.id,
   })
 
   root.append(toolbar, controls, scorePanel)
@@ -91,7 +94,7 @@ export async function initApp(root: HTMLElement): Promise<void> {
   // Advance the OSMD cursor to match the transport position.
   // In practice mode the cursor is owned by pitch detection; suppress here.
   onCursorAdvance((idx) => {
-    if (practiceOn) return
+    if (pitchMode === 'listen') return
     const osmd = getOsmd()
     if (!osmd) return
     // Transport loop wrap: idx jumped backward → reset cursor to loop start.
@@ -155,14 +158,27 @@ async function handleLoadScore(): Promise<void> {
     saveScore(xml)
   } catch (e) {
     if ((e as Error).message !== 'No file selected') {
-      alert('Failed to load score: ' + (e as Error).message)
+      notify('Failed to load score: ' + (e as Error).message, 'error')
     }
   }
 }
 
 async function renderScore(xml: string, titleHint: string): Promise<void> {
   setScoreTitle(titleHint)
-  await loadAndRender(xml)
+  await loadOsmdScore(xml)
+  const parts = getPartNames()
+  if (parts.length > 1) {
+    const sel = await pickPart(parts, currentPartIndices)
+    currentPartIndices = sel.indices
+    setVisibleParts(sel.indices)
+    const label = sel.indices.length === parts.length ? 'All' : (parts.find(p => p.index === sel.indices[0])?.name ?? 'Part')
+    setPartButton(label)
+    if (sel.instrumentId) applyInstrument(sel.instrumentId)
+  } else {
+    currentPartIndices = null
+    setPartButton(null)
+  }
+  renderOsmdScore()
 
   const osmd = getOsmd()
   if (!osmd) return
@@ -204,6 +220,7 @@ async function renderScore(xml: string, titleHint: string): Promise<void> {
   }
 
   buildTimeline(osmd)
+  if (getTimeline().length === 0) notify('No playable notes found in this score', 'warning')
   // If a restored loop range rendered nothing, fall back to the full score.
   if (loopOn && getTimeline().length === 0) {
     loopOn = false
@@ -309,11 +326,11 @@ function nearestMeasureAtEvent(e: MouseEvent): number {
 
 let lastHoverDebugMs = 0
 function handleScoreHover(e: MouseEvent): void {
-  if (practiceOn || notePixelPositions.size === 0) {
+  if (pitchMode === 'listen' || notePixelPositions.size === 0) {
     const now = Date.now()
     if (now - lastHoverDebugMs > 500) {
       lastHoverDebugMs = now
-      debugLog(`[hover] skipped: practiceOn=${practiceOn} positions=${notePixelPositions.size}`)
+      debugLog(`[hover] skipped: pitchMode=${pitchMode} positions=${notePixelPositions.size}`)
     }
     return
   }
@@ -353,7 +370,7 @@ function seekToMeasure(measure: number): void {
 }
 
 function handleScoreClick(e: MouseEvent): void {
-  if (practiceOn) return
+  if (pitchMode === 'listen') return
   const osmd = getOsmd()
   if (!osmd || notePixelPositions.size === 0) return
 
@@ -471,25 +488,64 @@ function currentNoteHoldMs(): number {
 }
 
 function updateExpectedPitch(): void {
-  const hz = (micOn || practiceOn) ? currentNoteHz() : 0
+  const hz = pitchMode !== 'off' ? currentNoteHz() : 0
   setExpectedPitch(hz)
-  if (practiceOn) setPracticeExpectedPitch(hz, currentNoteHoldMs())
+  if (pitchMode === 'listen') setPracticeExpectedPitch(hz, currentNoteHoldMs())
   updateMeterAnchor()
 }
 
-async function handleMicToggle(on: boolean): Promise<void> {
-  micOn = on
-  if (on) {
-    try {
-      await startPitchDetection(getOsmdContainer())
-      updateExpectedPitch()
-    } catch (e) {
-      alert('Microphone access denied: ' + (e as Error).message)
-      micOn = false
-    }
-  } else if (!practiceOn) {
+async function handlePitchModeChange(mode: 'off' | 'show' | 'listen'): Promise<void> {
+  const prev = pitchMode
+  pitchMode = mode
+
+  if (mode === 'off') {
+    if (prev === 'listen') stopPracticeMode()
     stopPitchDetection()
     setExpectedPitch(0)
+    setMusicMuted(false)
+    return
+  }
+
+  // Start mic if not already running
+  if (prev === 'off') {
+    try {
+      await startPitchDetection(getOsmdContainer())
+    } catch (e) {
+      notify('Microphone access denied — check browser permissions', 'error')
+      pitchMode = 'off'
+      return
+    }
+  }
+
+  if (mode === 'listen') {
+    if (prev !== 'listen') {
+      setMusicMuted(true)
+      stop()
+      setPlayPauseIcon(false)
+      const initialThreshold = 20
+      setPitchMeterThreshold(initialThreshold)
+      const hz = currentNoteHz()
+      setExpectedPitch(hz)
+      setPracticeExpectedPitch(hz, currentNoteHoldMs())
+      updateMeterAnchor()
+      startPracticeMode(practiceAdvance, initialThreshold)
+      // Skip forward past any leading rests
+      const osmd = getOsmd()
+      if (osmd && currentNoteHz() === 0) {
+        while (!osmd.cursor.iterator.EndReached) {
+          if ((osmd.cursor.NotesUnderCursor() ?? []).some((n: any) => !n.isRest?.())) break
+          advanceCursor(); cursorIdx++
+        }
+        updateExpectedPitch()
+      }
+    }
+  } else {
+    // show mode: stop practice if coming from listen
+    if (prev === 'listen') {
+      stopPracticeMode()
+      setMusicMuted(false)
+    }
+    updateExpectedPitch()
   }
 }
 
@@ -528,6 +584,28 @@ function handleLoopChange(enabled: boolean, from: number, to: number): void {
   if (currentXml) saveScoreLoop(currentXml, { enabled, from: clampedFrom, to: clampedTo })
 }
 
+async function handlePartClick(): Promise<void> {
+  if (!currentXml) return
+  const parts = getPartNames()
+  if (parts.length <= 1) return
+  const sel = await pickPart(parts, currentPartIndices)
+  currentPartIndices = sel.indices
+  setVisibleParts(sel.indices)
+  const label = sel.indices.length === parts.length
+    ? 'All'
+    : (parts.find(p => p.index === sel.indices[0])?.name ?? 'Part')
+  setPartButton(label)
+  if (sel.instrumentId) applyInstrument(sel.instrumentId)
+  renderOsmdScore()
+  const osmd = getOsmd()
+  if (!osmd) return
+  buildTimeline(osmd)
+  notePixelPositions = buildCursorPixelPositions(getOsmdContainer())
+  cursorIdx = 0
+  computeAndRenderHints(osmd, getOsmdContainer(), hintsMode, currentVoice, currentInstrument)
+  updateExpectedPitch()
+}
+
 function handleVoiceChange(mode: VoiceMode): void {
   currentVoice = mode
   setVoiceMode(mode)
@@ -536,53 +614,22 @@ function handleVoiceChange(mode: VoiceMode): void {
   if (osmd) computeAndRenderHints(osmd, getOsmdContainer(), hintsMode, currentVoice, currentInstrument)
 }
 
-function handleInstrumentChange(id: string): void {
-  currentInstrument = INSTRUMENTS[id] ?? INSTRUMENTS[DEFAULT_INSTRUMENT]
+function applyInstrument(id: string): void {
+  if (!INSTRUMENTS[id] || INSTRUMENTS[id] === currentInstrument) return
+  currentInstrument = INSTRUMENTS[id]
   const baseUrl = import.meta.env.BASE_URL + currentInstrument.samplePath
   initSampler(baseUrl, currentInstrument.sampleMap, () => {})
   const osmd = getOsmd()
   if (osmd) computeAndRenderHints(osmd, getOsmdContainer(), hintsMode, currentVoice, currentInstrument)
   saveSettings({ tempoRatio: getTempoRatio(), hintsMode, metronomeOn, instrumentId: id })
+  setInstrumentSelect(id)
 }
 
-async function handlePracticeToggle(on: boolean): Promise<void> {
-  practiceOn = on
-  if (on) {
-    if (!micOn) {
-      try {
-        await startPitchDetection(getOsmdContainer())
-      } catch (e) {
-        alert('Microphone access denied: ' + (e as Error).message)
-        practiceOn = false
-        return
-      }
-    }
-    const initialThreshold = 20
-    setPitchMeterThreshold(initialThreshold)
-    const hz = currentNoteHz()
-    setExpectedPitch(hz)
-    setPracticeExpectedPitch(hz, currentNoteHoldMs())
-    updateMeterAnchor()
-    startPracticeMode(practiceAdvance, initialThreshold)
-
-    // If cursor starts on a rest, skip forward to first pitched note.
-    const osmd = getOsmd()
-    if (osmd && currentNoteHz() === 0) {
-      while (!osmd.cursor.iterator.EndReached) {
-        const notes = osmd.cursor.NotesUnderCursor()
-        if ((notes ?? []).some((n: any) => !n.isRest?.())) break
-        advanceCursor(); cursorIdx++
-      }
-      updateExpectedPitch()
-    }
-  } else {
-    stopPracticeMode()
-    if (!micOn) {
-      stopPitchDetection()
-      setExpectedPitch(0)
-    }
-  }
+function handleInstrumentChange(id: string): void {
+  applyInstrument(id)
+  saveSettings({ tempoRatio: getTempoRatio(), hintsMode, metronomeOn, instrumentId: id })
 }
+
 
 function practiceAdvance(): void {
   const state = { cursorIdx, loopOn }

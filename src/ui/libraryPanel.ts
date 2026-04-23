@@ -1,15 +1,16 @@
 import { listScores, addScore, deleteScore, type LibraryEntry } from '../modules/library'
+import { notify } from './notify'
 import { readMusicXml } from '../modules/scoreLoader'
 import {
   isFSAccessSupported, pickFolder, restoreFolder,
   listFolderScores, readFolderScore, type FolderEntry,
 } from '../modules/fsFolder'
 
-type LoadCallback = (xml: string, title: string) => void
+type LoadCallback = (xml: string, title: string) => Promise<void>
 
 let panel: HTMLElement | null = null
 let overlay: HTMLElement | null = null
-let onLoad: LoadCallback = () => {}
+let onLoad: LoadCallback = async () => {}
 let currentFolder: FileSystemDirectoryHandle | null = null
 
 // ── Public API ──────────────────────────────────────────────────────────────
@@ -51,7 +52,7 @@ function buildPanel(): void {
   closeBtn.onclick = close
   header.append(heading, closeBtn)
 
-  panel.append(header, buildImportedSection(), buildFolderSection())
+  panel.append(header, buildRemoteSection(), buildImportedSection(), buildFolderSection())
   overlay.appendChild(panel)
   document.body.appendChild(overlay)
 }
@@ -121,11 +122,62 @@ function buildFolderSection(): HTMLElement {
   return section
 }
 
+function buildRemoteSection(): HTMLElement {
+  const section = document.createElement('div')
+  section.style.cssText = 'display:flex;flex-direction:column;gap:8px;'
+
+  const label = document.createElement('span')
+  label.style.cssText = 'font-weight:bold;font-size:0.85rem;text-transform:uppercase;' +
+    'letter-spacing:0.05em;color:#89b4fa;'
+  label.textContent = 'School of HONK Charts'
+
+  const list = document.createElement('div')
+  list.id = 'lib-remote-list'
+  list.style.cssText = 'display:flex;flex-direction:column;gap:4px;max-height:220px;overflow-y:auto;'
+  list.innerHTML = '<span style="font-size:0.8rem;color:#6c7086;font-style:italic;">Loading…</span>'
+
+  section.append(label, list)
+  return section
+}
+
 // ── Refresh content ──────────────────────────────────────────────────────────
 
 async function refresh(): Promise<void> {
+  refreshRemote()
   await refreshImported()
   await refreshFolder()
+}
+
+interface RemoteEntry { title: string; file: string }
+let remoteEntries: RemoteEntry[] | null = null
+
+async function refreshRemote(): Promise<void> {
+  const list = document.getElementById('lib-remote-list')
+  if (!list) return
+  if (!remoteEntries) {
+    try {
+      const base = (import.meta as any).env?.BASE_URL ?? '/'
+      const res = await fetch(base + 'library.json')
+      remoteEntries = await res.json()
+    } catch {
+      list.innerHTML = '<span style="font-size:0.8rem;color:#f38ba8;">Could not load chart list.</span>'
+      return
+    }
+  }
+  list.innerHTML = ''
+  for (const entry of remoteEntries ?? []) {
+    list.appendChild(scoreRowBase(entry.title, async () => {
+      close()
+      try {
+        const base = (import.meta as any).env?.BASE_URL ?? '/'
+        const res = await fetch(base + entry.file)
+        const xml = await res.text()
+        await onLoad(xml, entry.title)
+      } catch (e) {
+        notify('Failed to load ' + entry.title + ': ' + (e as Error).message, 'error')
+      }
+    }))
+  }
 }
 
 async function refreshImported(): Promise<void> {
@@ -190,8 +242,12 @@ function scoreRowBase(title: string, onClickLoad: () => void): HTMLElement {
 
 function importedRow(entry: LibraryEntry): HTMLElement {
   const row = scoreRowBase(entry.title, async () => {
-    onLoad(entry.xml, entry.title)
     close()
+    try {
+      await onLoad(entry.xml, entry.title)
+    } catch (e) {
+      notify('Failed to load ' + entry.title + ': ' + (e as Error).message, 'error')
+    }
   })
 
   const delBtn = document.createElement('button')
@@ -212,12 +268,12 @@ function importedRow(entry: LibraryEntry): HTMLElement {
 
 function folderRow(entry: FolderEntry): HTMLElement {
   return scoreRowBase(entry.title, async () => {
+    close()
     try {
       const xml = await readFolderScore(entry)
-      onLoad(xml, entry.title)
-      close()
+      await onLoad(xml, entry.title)
     } catch (e) {
-      alert('Failed to read file: ' + (e as Error).message)
+      notify('Failed to read file: ' + (e as Error).message, 'error')
     }
   })
 }
@@ -239,7 +295,7 @@ async function handleImport(): Promise<void> {
         const title = titleMatch?.[1] ?? file.name.replace(/\.(xml|mxl)$/i, '')
         await addScore(title, xml)
       } catch (e) {
-        alert(`Failed to import ${file.name}: ${(e as Error).message}`)
+        notify('Failed to import ' + file.name + ': ' + (e as Error).message, 'error')
       }
     }
     await refreshImported()
@@ -253,7 +309,7 @@ async function handlePickFolder(): Promise<void> {
     await refreshFolder()
   } catch (e) {
     if ((e as Error).name !== 'AbortError') {
-      alert('Could not open folder: ' + (e as Error).message)
+      notify('Could not open folder: ' + (e as Error).message, 'error')
     }
   }
 }

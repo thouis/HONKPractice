@@ -1,6 +1,7 @@
 import * as Tone from 'tone'
 import { isEnabled as isMetronomeEnabled, scheduleClick } from './metronome'
 import type { NoteEvent } from '../types'
+import { notify } from '../ui/notify'
 
 const DEBUG = false
 
@@ -19,6 +20,8 @@ let beatsPerBar = 4
 let beatDenominator = 4  // time sig denominator; whole note / denominator = one click interval
 let voiceMode: VoiceMode = 'all'
 let seekOffsetSec: number | null = null   // null = no seek; 0 = seeked to beginning
+let userVolumeDb = 20 * Math.log10(80 / 100)
+let musicMuted = false
 
 export function setVoiceMode(mode: VoiceMode): void { voiceMode = mode }
 
@@ -40,7 +43,7 @@ export function initSampler(baseUrl: string, sampleMap: Record<string, string>, 
     baseUrl,
     release: 0.5,
     onload: () => { console.log('Sampler loaded from', baseUrl); onLoad() },
-    onerror: (e) => console.error('Sampler load error', e),
+    onerror: (e) => { console.error('Sampler load error', e); notify('Audio samples failed to load — playback unavailable', 'error') },
   }).toDestination()
 }
 
@@ -274,6 +277,13 @@ export function seekToEvent(evIdx: number): void {
 
 // 0–100 linear → dB
 export function setMusicVolume(v: number): void {
+  userVolumeDb = v === 0 ? -Infinity : 20 * Math.log10(v / 100)
+  if (!sampler || musicMuted) return
+  sampler.volume.value = userVolumeDb
+}
+
+export function setMusicMuted(muted: boolean): void {
+  musicMuted = muted
   if (!sampler) return
-  sampler.volume.value = v === 0 ? -Infinity : 20 * Math.log10(v / 100)
+  sampler.volume.value = muted ? -Infinity : userVolumeDb
 }

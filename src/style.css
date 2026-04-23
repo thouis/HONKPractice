@@ -15,6 +15,9 @@ body {
 
 /* Toolbar */
 .toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -27,6 +30,9 @@ body {
 
 /* Controls bar */
 .controls-bar {
+  position: sticky;
+  top: 40px;   /* approx toolbar height; controls stack below it */
+  z-index: 99;
   display: flex;
   flex-wrap: wrap;
   align-items: center;

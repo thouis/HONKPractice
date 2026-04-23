@@ -1,3 +1,5 @@
+import { notify } from '../ui/notify'
+
 const SCORE_KEY = 'tp_score_xml'
 const SETTINGS_KEY = 'tp_settings'
 const LOOP_STATE_PREFIX = 'tp_loop_'
@@ -17,7 +19,7 @@ export interface LoopState {
 }
 
 export function saveScoreLoop(xml: string, state: LoopState): void {
-  try { localStorage.setItem(LOOP_STATE_PREFIX + scoreKey(xml), JSON.stringify(state)) } catch { /* quota */ }
+  try { localStorage.setItem(LOOP_STATE_PREFIX + scoreKey(xml), JSON.stringify(state)) } catch { notify('Storage full — loop position not saved', 'warning') }
 }
 
 export function loadScoreLoop(xml: string): LoopState | null {
@@ -28,7 +30,7 @@ export function loadScoreLoop(xml: string): LoopState | null {
 }
 
 export function saveScore(xml: string): void {
-  try { localStorage.setItem(SCORE_KEY, xml) } catch { /* quota */ }
+  try { localStorage.setItem(SCORE_KEY, xml) } catch { notify('Storage full — score not saved for next visit', 'warning') }
 }
 
 export function loadScore(): string | null {
@@ -36,7 +38,7 @@ export function loadScore(): string | null {
 }
 
 export function saveSettings(settings: Record<string, unknown>): void {
-  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)) } catch { /* quota */ }
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)) } catch { /* settings loss is silent — not worth interrupting the user */ }
 }
 
 export function loadSettings(): Record<string, unknown> {

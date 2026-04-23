@@ -12,13 +12,66 @@ export async function initDisplay(container: HTMLElement): Promise<void> {
   })
 }
 
-export async function loadAndRender(xml: string): Promise<void> {
+export async function loadOsmdScore(xml: string): Promise<void> {
   if (!osmdInstance) throw new Error('Display not initialized')
   await osmdInstance.load(xml)
+  fixGlissandoStartNotes()
+}
+
+// OSMD 1.9.7 bug: addSlur() sets NoteGlissando only on the stop note, but the
+// renderer checks it on the start note. Copy the reference to fix rendering.
+function fixGlissandoStartNotes(): void {
+  const measures: any[] = (osmdInstance as any)?.Sheet?.SourceMeasures ?? []
+  for (const measure of measures) {
+    for (const staff of measure.VerticalSourceStaffEntryContainers ?? []) {
+      for (const entry of staff.StaffEntries ?? []) {
+        if (!entry) continue
+        for (const ve of entry.VoiceEntries ?? []) {
+          for (const note of ve.Notes ?? []) {
+            const g = note.NoteGlissando
+            if (g && g.StartNote && g.StartNote !== note && !g.StartNote.NoteGlissando) {
+              g.StartNote.NoteGlissando = g
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+export function renderOsmdScore(): void {
+  if (!osmdInstance) return
   osmdInstance.render()
   osmdInstance.enableOrDisableCursors(true)
   osmdInstance.cursor.show()
   osmdInstance.cursor.reset()
+}
+
+export async function loadAndRender(xml: string): Promise<void> {
+  await loadOsmdScore(xml)
+  renderOsmdScore()
+}
+
+export function getPartNames(): { index: number; name: string; clef?: 'bass' | 'treble' }[] {
+  const instruments: any[] = (osmdInstance as any)?.Sheet?.Instruments ?? []
+  return instruments.map((inst, i) => {
+    // Read the clef of the first staff's first source measure entry.
+    let clef: 'bass' | 'treble' | undefined
+    try {
+      const clefKey: string = inst.Staves?.[0]?.StaffLines?.[0]?.Clef?.clefType
+        ?? inst.Staves?.[0]?.Clef?.clefType
+        ?? ''
+      if (/bass/i.test(clefKey)) clef = 'bass'
+      else if (/treble|violin|G/i.test(clefKey)) clef = 'treble'
+    } catch { /* ignore */ }
+    return { index: i, name: inst.Name ?? `Part ${i + 1}`, clef }
+  })
+}
+
+export function setVisibleParts(indices: number[]): void {
+  const instruments: any[] = (osmdInstance as any)?.Sheet?.Instruments ?? []
+  const all = indices.length === 0 || indices.length === instruments.length
+  instruments.forEach((inst, i) => { inst.Visible = all || indices.includes(i) })
 }
 
 export function getOsmd() {
@@ -31,6 +84,12 @@ export function getMeasureCount(): number {
 
 export function renderRange(from: number, to: number): void {
   if (!osmdInstance) return
+  // OSMD requires a full render before a subset render to correctly handle
+  // multi-measure rests and other structural elements.
+  if (from > 1) {
+    osmdInstance.setOptions({ drawFromMeasureNumber: 1, drawUpToMeasureNumber: 9999 })
+    osmdInstance.render()
+  }
   osmdInstance.setOptions({ drawFromMeasureNumber: from, drawUpToMeasureNumber: to })
   osmdInstance.render()
   osmdInstance.enableOrDisableCursors(true)
@@ -68,33 +127,25 @@ export function advanceCursor(): void {
   cursor.next()
 }
 
-// Returns pixel {x, y} for each cursor step index (container-relative).
+// Returns pixel {x, y, height} for each cursor step index (container-relative).
+// Uses the cursor element's DOM position so it works regardless of OSMD internals.
 export function buildCursorPixelPositions(
   container: HTMLElement
-): Map<number, {x: number, y: number}> {
-  const map = new Map<number, {x: number, y: number}>()
+): Map<number, {x: number, y: number, height: number}> {
+  const map = new Map<number, {x: number, y: number, height: number}>()
   if (!osmdInstance) return map
-  const svgEls = Array.from(container.querySelectorAll('svg')) as SVGSVGElement[]
-  if (svgEls.length === 0) return map
   const containerRect = container.getBoundingClientRect()
-  const pageWidth: number = (osmdInstance as any).Sheet?.pageWidth ?? 180
-  const scaleX = svgEls[0].getBoundingClientRect().width / pageWidth
-  const svgRects = svgEls.map(s => s.getBoundingClientRect())
 
   osmdInstance.cursor.reset()
   let idx = 0
   while (!osmdInstance.cursor.iterator.EndReached) {
-    const gnotes: any[] = (osmdInstance.cursor as any).GNotesUnderCursor?.() ?? []
-    const refGn = gnotes.find((g: any) => !g.sourceNote?.isRest?.()) ?? gnotes[0]
-    const absPos = refGn?.PositionAndShape?.AbsolutePosition
-    if (absPos) {
-      const pageNum: number =
-        refGn?.parentVoiceEntry?.parentStaffEntry?.parentMeasure
-          ?.parentMusicSystem?.Parent?.pageNumber ?? 1
-      const svgRect = svgRects[pageNum - 1] ?? svgRects[0]
+    const cursorEl = (osmdInstance.cursor as any).cursorElement as Element | null
+    if (cursorEl) {
+      const r = cursorEl.getBoundingClientRect()
       map.set(idx, {
-        x: absPos.x * scaleX + svgRect.left - containerRect.left,
-        y: absPos.y * scaleX + svgRect.top  - containerRect.top,
+        x: r.left + r.width / 2 - containerRect.left,
+        y: r.top  - containerRect.top,
+        height: r.height,
       })
     }
     osmdInstance.cursor.next()

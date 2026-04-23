@@ -1,4 +1,5 @@
-import { onPitchDetected } from './pitchDetector'
+import { onPitchDetected, CLARITY_THRESHOLD } from './pitchDetector'
+import { debugLog, isDebugVisible } from './debugPanel'
 
 // Practice mode: cursor advances only after the user sustains the correct
 // pitch within `thresholdCents` for `holdMs` milliseconds.
@@ -10,7 +11,8 @@ import { onPitchDetected } from './pitchDetector'
 // (clarity below threshold) before we start accumulating the hold.  This
 // ensures repeated notes each require a fresh onset.
 
-const CLARITY_THRESHOLD = 0.9
+const DEBUG = () => isDebugVisible()
+
 const MIN_GAP_MS = 150   // ms of silence required between notes
 
 type State = 'need_gap' | 'ready' | 'holding'
@@ -24,6 +26,7 @@ let gapStartMs = 0        // when silence window started
 let holdStartMs = 0       // when in-range window started
 let unsubscribe: (() => void) | null = null
 let onAdvance: (() => void) | null = null
+let restTimer: ReturnType<typeof setTimeout> | null = null
 
 export function startPracticeMode(advanceCb: () => void, cents: number): void {
   active = true
@@ -31,6 +34,7 @@ export function startPracticeMode(advanceCb: () => void, cents: number): void {
   onAdvance = advanceCb
   resetToGap()
   unsubscribe = onPitchDetected(handlePitch)
+  if (DEBUG()) debugLog(`[practice] started expectedHz=${expectedHz} holdMs=${holdMs}`)
 }
 
 export function stopPracticeMode(): void {
@@ -38,12 +42,23 @@ export function stopPracticeMode(): void {
   unsubscribe?.()
   unsubscribe = null
   onAdvance = null
+  if (restTimer !== null) { clearTimeout(restTimer); restTimer = null }
 }
 
 export function setPracticeExpectedPitch(hz: number, noteHoldMs: number): void {
-  expectedHz = hz
+  if (restTimer !== null) { clearTimeout(restTimer); restTimer = null }
   holdMs = Math.max(100, noteHoldMs)
+  expectedHz = hz
   resetToGap()
+  if (DEBUG()) debugLog(`[practice] expectedHz=${hz.toFixed(1)} holdMs=${holdMs}`)
+  if (hz <= 0) {
+    // Rest: wait the note duration then advance automatically.
+    if (DEBUG()) debugLog(`[practice] rest → auto-advance in ${holdMs}ms`)
+    restTimer = setTimeout(() => {
+      restTimer = null
+      if (active) onAdvance?.()
+    }, holdMs)
+  }
 }
 
 export function setPracticeThreshold(cents: number): void {
@@ -65,7 +80,7 @@ function handlePitch(hz: number, clarity: number): void {
   if (state === 'need_gap') {
     if (silent) {
       if (gapStartMs === 0) gapStartMs = now
-      if (now - gapStartMs >= MIN_GAP_MS) state = 'ready'
+      if (now - gapStartMs >= MIN_GAP_MS) { state = 'ready'; if (DEBUG()) debugLog('[practice] → ready') }
     } else {
       gapStartMs = 0
     }
@@ -75,9 +90,11 @@ function handlePitch(hz: number, clarity: number): void {
   if (state === 'ready') {
     if (!silent) {
       const cents = Math.abs(1200 * Math.log2(hz / expectedHz))
+      if (DEBUG()) debugLog(`[practice] ready pitch=${hz.toFixed(1)} exp=${expectedHz.toFixed(1)} ¢=${cents.toFixed(1)}`)
       if (cents <= thresholdCents) {
         state = 'holding'
         holdStartMs = now
+        if (DEBUG()) debugLog('[practice] → holding')
       }
     }
     return
@@ -87,6 +104,7 @@ function handlePitch(hz: number, clarity: number): void {
   if (silent) {
     state = 'ready'   // wavered — back to ready (gap already satisfied)
     holdStartMs = 0
+    if (DEBUG()) debugLog('[practice] holding → ready (silence)')
     return
   }
 
@@ -94,10 +112,12 @@ function handlePitch(hz: number, clarity: number): void {
   if (cents > thresholdCents) {
     state = 'ready'
     holdStartMs = 0
+    if (DEBUG()) debugLog(`[practice] holding → ready (out of tune ¢=${cents.toFixed(1)})`)
     return
   }
 
   if (now - holdStartMs >= holdMs) {
+    if (DEBUG()) debugLog(`[practice] ADVANCE after ${holdMs}ms hold`)
     resetToGap()                // immediately require gap before next note
     onAdvance?.()
   }

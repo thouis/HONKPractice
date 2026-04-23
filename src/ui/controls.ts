@@ -1,3 +1,5 @@
+import { INSTRUMENTS } from '../data/instruments/index'
+
 export type HintsMode = 0 | 1 | 2  // 0=off, 1=position, 2=position+partial
 
 export type VoiceMode = 'all' | 'lowest' | 'middle' | 'highest'
@@ -8,13 +10,15 @@ export interface ControlCallbacks {
   onTempoChange: (ratio: number) => void
   onMetronomeToggle: (on: boolean) => void
   onHintsChange: (mode: HintsMode) => void
-  onMicToggle: (on: boolean) => void
-  onPracticeToggle: (on: boolean) => void
+  onPitchModeChange: (mode: 'off' | 'show' | 'listen') => void
   onPracticeThresholdChange: (cents: number) => void
   onLoopChange: (enabled: boolean, from: number, to: number) => void
   onLoopRestChange: (enabled: boolean) => void
   onVoiceChange: (mode: VoiceMode) => void
   onSelectClick: () => void
+  onPartClick: () => void
+  onInstrumentChange: (id: string) => void
+  initialInstrumentId: string
 }
 
 let bpmDisplay: HTMLSpanElement
@@ -22,15 +26,15 @@ let tempoSlider: HTMLInputElement
 let playPauseBtn: HTMLButtonElement
 let metBtn: HTMLButtonElement
 let hintsBtn: HTMLButtonElement
-let micBtn: HTMLButtonElement
-let practiceBtn: HTMLButtonElement
+let pitchBtn: HTMLButtonElement
 let loopBtn: HTMLButtonElement
 let loopFromInput: HTMLInputElement
 let loopToInput: HTMLInputElement
 let loopRangeEls: HTMLElement[]
 let selectBtn: HTMLButtonElement
-let loopBtnState = false  // mirrors closure loopOn; kept in sync for setLoopUI
-void loopBtnState        // suppress unused-read warning — written by setLoopUI/resetLoopControl
+let partBtn: HTMLButtonElement
+let instrumentSelect: HTMLSelectElement
+let loopBtnState = false  // single source of truth for loop button state
 
 export function createControls(cbs: ControlCallbacks): HTMLElement {
   const bar = document.createElement('div')
@@ -94,23 +98,14 @@ export function createControls(cbs: ControlCallbacks): HTMLElement {
     cbs.onHintsChange(hintsMode)
   }
 
-  // --- Mic / pitch detection ---
-  micBtn = document.createElement('button')
-  micBtn.textContent = 'Mic: OFF'
-  micBtn.className = 'btn'
-  let micOn = false
-  micBtn.onclick = () => {
-    micOn = !micOn
-    micBtn.textContent = `Mic: ${micOn ? 'ON' : 'OFF'}`
-    micBtn.classList.toggle('btn-active', micOn)
-    cbs.onMicToggle(micOn)
-  }
-
-  // --- Practice mode ---
-  practiceBtn = document.createElement('button')
-  practiceBtn.textContent = 'Practice: OFF'
-  practiceBtn.className = 'btn'
-  let practiceOn = false
+  // --- Pitch mode (tri-state: off → show → listen → off) ---
+  type PitchMode = 'off' | 'show' | 'listen'
+  const PITCH_LABELS: Record<PitchMode, string> = { off: 'Mic: OFF', show: 'Mic: Show', listen: 'Mic: Listen' }
+  const PITCH_CYCLE: PitchMode[] = ['off', 'show', 'listen']
+  let pitchModeIdx = 0
+  pitchBtn = document.createElement('button')
+  pitchBtn.textContent = PITCH_LABELS['off']
+  pitchBtn.className = 'btn'
 
   const thresholdLabel = document.createElement('label')
   thresholdLabel.textContent = '±'
@@ -125,14 +120,16 @@ export function createControls(cbs: ControlCallbacks): HTMLElement {
   thresholdUnit.textContent = '¢'
   thresholdUnit.style.display = 'none'
 
-  practiceBtn.onclick = () => {
-    practiceOn = !practiceOn
-    practiceBtn.textContent = `Practice: ${practiceOn ? 'ON' : 'OFF'}`
-    practiceBtn.classList.toggle('btn-active', practiceOn)
-    thresholdLabel.style.display = practiceOn ? '' : 'none'
-    thresholdInput.style.display = practiceOn ? '' : 'none'
-    thresholdUnit.style.display = practiceOn ? '' : 'none'
-    cbs.onPracticeToggle(practiceOn)
+  pitchBtn.onclick = () => {
+    pitchModeIdx = (pitchModeIdx + 1) % PITCH_CYCLE.length
+    const mode = PITCH_CYCLE[pitchModeIdx]
+    pitchBtn.textContent = PITCH_LABELS[mode]
+    pitchBtn.classList.toggle('btn-active', mode !== 'off')
+    const showThreshold = mode === 'listen'
+    thresholdLabel.style.display = showThreshold ? '' : 'none'
+    thresholdInput.style.display = showThreshold ? '' : 'none'
+    thresholdUnit.style.display = showThreshold ? '' : 'none'
+    cbs.onPitchModeChange(mode)
   }
   thresholdInput.oninput = () => {
     cbs.onPracticeThresholdChange(parseInt(thresholdInput.value) || 20)
@@ -142,7 +139,6 @@ export function createControls(cbs: ControlCallbacks): HTMLElement {
   loopBtn = document.createElement('button')
   loopBtn.textContent = 'Loop: OFF'
   loopBtn.className = 'btn'
-  let loopOn = false
 
   loopFromInput = document.createElement('input')
   loopFromInput.type = 'number'
@@ -180,7 +176,7 @@ export function createControls(cbs: ControlCallbacks): HTMLElement {
   loopRangeEls = [loopFromInput, loopSep, loopToInput, loopRestBtn]
 
   const fireLoop = () => {
-    if (!loopOn) return
+    if (!loopBtnState) return
     const from = Math.max(1, parseInt(loopFromInput.value) || 1)
     const to   = Math.max(from, parseInt(loopToInput.value) || from)
     loopToInput.value = String(to)
@@ -188,14 +184,13 @@ export function createControls(cbs: ControlCallbacks): HTMLElement {
   }
 
   loopBtn.onclick = () => {
-    loopOn = !loopOn
-    loopBtnState = loopOn
-    loopBtn.textContent = `Loop: ${loopOn ? 'ON' : 'OFF'}`
-    loopBtn.classList.toggle('btn-active', loopOn)
-    loopRangeEls.forEach(el => el.style.display = loopOn ? '' : 'none')
+    loopBtnState = !loopBtnState
+    loopBtn.textContent = `Loop: ${loopBtnState ? 'ON' : 'OFF'}`
+    loopBtn.classList.toggle('btn-active', loopBtnState)
+    loopRangeEls.forEach(el => el.style.display = loopBtnState ? '' : 'none')
     const from = parseInt(loopFromInput.value) || 1
     const to   = parseInt(loopToInput.value) || 1
-    cbs.onLoopChange(loopOn, from, to)
+    cbs.onLoopChange(loopBtnState, from, to)
   }
   loopFromInput.onchange = fireLoop
   loopToInput.onchange   = fireLoop
@@ -223,9 +218,31 @@ export function createControls(cbs: ControlCallbacks): HTMLElement {
   selectBtn.className = 'btn'
   selectBtn.onclick = cbs.onSelectClick
 
+  // --- Part selector (hidden until a multi-part score is loaded) ---
+  partBtn = document.createElement('button')
+  partBtn.textContent = 'Part'
+  partBtn.className = 'btn'
+  partBtn.style.display = 'none'
+  partBtn.onclick = cbs.onPartClick
+
+  // --- Instrument selector ---
+  instrumentSelect = document.createElement('select')
+  instrumentSelect.style.cssText =
+    'font-size:13px;padding:3px 6px;border:1px solid #999;border-radius:4px;' +
+    'background:#fff;cursor:pointer;'
+  for (const [id, def] of Object.entries(INSTRUMENTS)) {
+    const opt = document.createElement('option')
+    opt.value = id
+    opt.textContent = def.name
+    if (id === cbs.initialInstrumentId) opt.selected = true
+    instrumentSelect.appendChild(opt)
+  }
+  instrumentSelect.onchange = () => cbs.onInstrumentChange(instrumentSelect.value)
+
   bar.append(rewindBtn, playPauseBtn, stopBtn, tempoLabel, tempoSlider, bpmDisplay,
-    metBtn, hintsBtn, voiceBtn, micBtn, practiceBtn, thresholdLabel, thresholdInput, thresholdUnit,
-    loopBtn, loopFromInput, loopSep, loopToInput, loopRestBtn, selectBtn)
+    metBtn, hintsBtn, voiceBtn, pitchBtn, thresholdLabel, thresholdInput, thresholdUnit,
+    loopBtn, loopFromInput, loopSep, loopToInput, loopRestBtn, selectBtn, partBtn,
+    instrumentSelect)
   return bar
 }
 
@@ -244,7 +261,7 @@ export function setSelectBtnState(state: SelectBtnState): void {
   const labels: Record<SelectBtnState, string> = {
     idle:      'Select',
     selecting: 'Cancel',
-    active:    'Unselect',
+    active:    'Show all',
   }
   selectBtn.textContent = labels[state]
   selectBtn.classList.toggle('btn-active', state === 'active')
@@ -277,5 +294,21 @@ export function resetLoopControl(totalBars: number): void {
   if (restBtn) {
     restBtn.textContent = 'Rest: ON'
     restBtn.classList.add('btn-active')
+  }
+}
+
+// Sync the instrument selector to reflect an externally-applied change.
+export function setInstrumentSelect(id: string): void {
+  if (instrumentSelect) instrumentSelect.value = id
+}
+
+// Show or hide the Part button and update its label.
+export function setPartButton(partName: string | null): void {
+  if (!partBtn) return
+  if (partName === null) {
+    partBtn.style.display = 'none'
+  } else {
+    partBtn.style.display = ''
+    partBtn.textContent = `Part: ${partName}`
   }
 }
