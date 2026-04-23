@@ -191,44 +191,23 @@ async function renderScore(xml: string, titleHint: string): Promise<void> {
   getOsmdContainer().style.cursor = ''
   const total = getMeasureCount()
 
-  // Restore saved loop range for this score, or reset to full score.
+  // Always start with full score / idle selection; loop range numbers are
+  // pre-filled from saved state but not auto-activated.
   const savedLoop = loadScoreLoop(xml)
+  loopOn = false
+  setLoopEnabled(false)
+  clearRangeIndicator()
   if (savedLoop) {
-    loopOn = savedLoop.enabled
     const from = Math.max(1, savedLoop.from)
     const to   = Math.min(savedLoop.to, total)
     resetLoopControl(total)
-    if (loopOn) {
-      // re-apply range selector and indicators — handleLoopChange does this,
-      // but we need to skip saving again; call it directly.
-      renderRange(from, to)
-      setLoopEnabled(true)
-      setRangeIndicator(from, to, total)
-      setLoopUI(true, from, to)
-      selectState = 'active'
-      setSelectBtnState('active')
-    } else {
-      clearRangeIndicator()
-    }
+    setLoopUI(false, from, to)   // show the numbers, but loop OFF
   } else {
-    loopOn = false
-    setLoopEnabled(false)
     resetLoopControl(total)
-    clearRangeIndicator()
   }
 
   buildTimeline(osmd)
   if (getTimeline().length === 0) notify('No playable notes found in this score', 'warning')
-  // If a restored loop range rendered nothing, fall back to the full score.
-  if (loopOn && getTimeline().length === 0) {
-    loopOn = false
-    setLoopEnabled(false)
-    renderRange(1, total)
-    resetLoopControl(total)
-    clearRangeIndicator()
-    buildTimeline(osmd)
-    if (currentXml) saveScoreLoop(currentXml, { enabled: false, from: 1, to: total })
-  }
   notePixelPositions = buildCursorPixelPositions(getOsmdContainer())
   setTempoRatio(1.0)
   const writtenBpm = getWrittenBpm()
