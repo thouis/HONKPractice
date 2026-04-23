@@ -6,7 +6,7 @@
 # Project name is read from CLOUDFLARE_PROJECT env var, defaulting to "HONKPractice".
 set -e
 
-PROJECT="${CLOUDFLARE_PROJECT:-HONKPractice}"
+PROJECT="${CLOUDFLARE_PROJECT:-honkpractice}"
 SCORES_DIR="${SCORES_DIR:-public/scores}"
 
 # Parse --scores-dir argument
