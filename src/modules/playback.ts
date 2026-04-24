@@ -62,12 +62,23 @@ export function buildTimeline(osmd: import('opensheetmusicdisplay').OpenSheetMus
     // If timestamp is null the RealValue will be 0; treat those entries as
     // belonging to the previous timestamp so they don't pile up at t=0.
     const fractionStart: number = ts != null ? (ts.RealValue ?? 0) : prevFraction
+
+    // Skip positions the cursor revisits due to repeat signs — each measure
+    // is only scheduled once.  A backwards jump in fractionStart always means
+    // a repeat; forward-only scores never go backwards.
+    if (fractionStart < prevFraction - 1e-6) {
+      osmd.cursor.next()
+      idx++
+      continue
+    }
+
     const notes = osmd.cursor.NotesUnderCursor()
 
     const midiNotes: number[] = []
     const noteDurations: number[] = []   // parallel to midiNotes
     let durationFraction = 0
 
+    let hasTieStop = false
     for (const note of notes ?? []) {
       const n = note as any
       // Skip rests and tie continuations (held notes should not re-trigger).
@@ -77,7 +88,10 @@ export function buildTimeline(osmd: import('opensheetmusicdisplay').OpenSheetMus
       // note, AND share the same pitch (ties always connect equal pitches; slurs
       // encoded as ties would have different pitches and should still sound).
       if (tie && tie.StartNote && tie.StartNote !== n &&
-          tie.StartNote.halfTone === n.halfTone) continue
+          tie.StartNote.halfTone === n.halfTone) {
+        hasTieStop = true
+        continue
+      }
 
       // For the start of a tie chain, sum all chained note lengths so the
       // sampler sustains through continuations that we skip.
@@ -91,6 +105,23 @@ export function buildTimeline(osmd: import('opensheetmusicdisplay').OpenSheetMus
       midiNotes.push(n.halfTone + 12)
       noteDurations.push(noteDur)
       if (durationFraction === 0) durationFraction = noteDur
+    }
+
+    // Implied chord tie: when at least one note in this chord is an explicit
+    // tie-stop, suppress re-attacks of any other notes already sounding (present
+    // in the immediately preceding timeline event) and extend their held duration.
+    // Handles scores where only one voice in a chord carries an explicit tie but
+    // the whole chord is intended to be held.
+    if (hasTieStop && timeline.length > 0) {
+      const prevEvent = timeline[timeline.length - 1]
+      for (let i = midiNotes.length - 1; i >= 0; i--) {
+        const prevIdx = prevEvent.midiNotes.indexOf(midiNotes[i])
+        if (prevIdx >= 0) {
+          prevEvent.noteDurations[prevIdx] += noteDurations[i]
+          midiNotes.splice(i, 1)
+          noteDurations.splice(i, 1)
+        }
+      }
     }
 
     // Merge entries at the same timestamp into a single event to avoid
