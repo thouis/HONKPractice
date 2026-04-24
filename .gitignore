@@ -36,3 +36,9 @@ public/samples/
 score.xml
 tofix.txt
 buildfail.txt
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example
