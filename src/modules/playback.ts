@@ -243,8 +243,13 @@ function scheduleEvents(): void {
 export async function play(): Promise<void> {
   await Tone.start()
   await Tone.loaded()   // wait for all buffers regardless of onload callback
+  if (Tone.getTransport().state === 'paused') {
+    Tone.getTransport().start()
+    return
+  }
   scheduleEvents()
   Tone.getTransport().start('+0', seekOffsetSec ?? undefined)
+  seekOffsetSec = null
 }
 
 export function reschedule(): void {
