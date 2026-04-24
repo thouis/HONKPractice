@@ -2,6 +2,7 @@ export interface SettingsCallbacks {
   onMusicVolume: (v: number) => void
   onMetronomeVolume: (v: number) => void
   onPitchSensitivity: (db: number) => void
+  onDebugHud: (enabled: boolean) => void
 }
 
 let overlay: HTMLElement | null = null
@@ -9,6 +10,7 @@ let callbacks: SettingsCallbacks = {
   onMusicVolume: () => {},
   onMetronomeVolume: () => {},
   onPitchSensitivity: () => {},
+  onDebugHud: () => {},
 }
 
 // ── Public API ───────────────────────────────────────────────────────────────
@@ -72,7 +74,10 @@ function buildPanel(): void {
     (v) => callbacks.onPitchSensitivity(v),
   )
 
-  panel.append(header, musicVolumeRow, metronomeVolumeRow, pitchSensitivityRow)
+  const debugRow = buildCheckbox('Debug HUD (measure/note overlay)', false,
+    (v) => callbacks.onDebugHud(v))
+
+  panel.append(header, musicVolumeRow, metronomeVolumeRow, pitchSensitivityRow, debugRow)
   overlay.appendChild(panel)
   document.body.appendChild(overlay)
 }
@@ -165,6 +170,25 @@ function buildSliderWithValue(
 
   container.append(topRow, slider)
   return container
+}
+
+function buildCheckbox(labelText: string, defaultChecked: boolean, onChange: (v: boolean) => void): HTMLElement {
+  const row = document.createElement('div')
+  row.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:12px;'
+
+  const cb = document.createElement('input')
+  cb.type = 'checkbox'
+  cb.checked = defaultChecked
+  cb.style.cssText = 'width:16px;height:16px;cursor:pointer;accent-color:#89b4fa;'
+  cb.onchange = () => onChange(cb.checked)
+
+  const label = document.createElement('label')
+  label.textContent = labelText
+  label.style.cssText = 'font-size:0.88rem;color:#cdd6f4;cursor:pointer;'
+  label.onclick = () => { cb.checked = !cb.checked; onChange(cb.checked) }
+
+  row.append(cb, label)
+  return row
 }
 
 // ── Close ────────────────────────────────────────────────────────────────────

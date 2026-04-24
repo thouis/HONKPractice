@@ -16,11 +16,12 @@ import { computeAndRenderHints } from './modules/positionAdvisor'
 import { INSTRUMENTS, DEFAULT_INSTRUMENT } from './data/instruments/index'
 import type { InstrumentDef } from './types'
 import { startPitchDetection, stopPitchDetection, setExpectedPitch,
-         setPitchMeterAnchor, setPitchMeterThreshold, setPitchSensitivity } from './modules/pitchDetector'
+         setPitchMeterAnchor, setPitchMeterThreshold, setPitchSensitivity,
+         reattachMeterCanvas } from './modules/pitchDetector'
 import { startPracticeMode, stopPracticeMode, setPracticeExpectedPitch, setPracticeThreshold } from './modules/practiceMode'
 import { practiceAdvanceStep } from './modules/practiceAdvance'
 import { saveScore, loadScore, saveSettings, loadSettings, saveScoreLoop } from './modules/storage'
-import { toggleDebugPanel, debugLog } from './modules/debugPanel'
+import { toggleDebugPanel, debugLog, initPlaybackHud, setPlaybackHudVisible, updatePlaybackHud } from './modules/debugPanel'
 import { initLibraryPanel, openLibraryPanel } from './ui/libraryPanel'
 import { notify } from './ui/notify'
 import { initSettingsPanel, openSettingsPanel } from './ui/settingsPanel'
@@ -37,6 +38,11 @@ let currentVoice: VoiceMode = 'all'
 let currentInstrument: InstrumentDef = INSTRUMENTS[DEFAULT_INSTRUMENT]
 let currentXml = ''   // for per-score loop memory
 let currentPartIndices: number[] | null = null  // null = all parts
+
+const NOTE_NAMES = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B']
+function midiToNoteName(midi: number): string {
+  return NOTE_NAMES[midi % 12] + (Math.floor(midi / 12) - 1)
+}
 
 // Module-level so handleStop can reset it without closure issues.
 let cursorIdx = 0
@@ -58,6 +64,7 @@ export async function initApp(root: HTMLElement): Promise<void> {
     onMusicVolume:     setMusicVolume,
     onMetronomeVolume: setMetronomeVolume,
     onPitchSensitivity: setPitchSensitivity,
+    onDebugHud:        setPlaybackHudVisible,
   })
   const toolbar = createToolbar(handleLoadScore, openLibraryPanel, openSettingsPanel, openHelpPanel)
   const scorePanel = createScorePanel()
@@ -89,12 +96,23 @@ export async function initApp(root: HTMLElement): Promise<void> {
   await initDisplay(getOsmdContainer())
   initMetronome(getBeatIndicator())
 
+  initPlaybackHud()
+
   const baseUrl = import.meta.env.BASE_URL + currentInstrument.samplePath
   initSampler(baseUrl, currentInstrument.sampleMap, () => { console.log('Sampler loaded from', baseUrl) })
 
   // Advance the OSMD cursor to match the transport position.
   // In practice mode the cursor is owned by pitch detection; suppress here.
   onCursorAdvance((idx) => {
+    // Update debug HUD — runs inside Tone.getDraw() so audio has already fired.
+    const tl = getTimeline()
+    const ev = tl.find(e => e.cursorIndex === idx)
+    if (ev) {
+      const measure = `M${ev.measureIndex + 1}`
+      const notes = ev.midiNotes.map(midiToNoteName).join(' ') || '—'
+      updatePlaybackHud(measure, notes)
+    }
+
     if (pitchMode === 'listen') return
     const osmd = getOsmd()
     if (!osmd) return
@@ -541,13 +559,13 @@ function handleLoopChange(enabled: boolean, from: number, to: number): void {
 
   if (enabled || selectState === 'active') {
     renderRange(clampedFrom, clampedTo)
-    buildTimeline(osmd)
     setRangeIndicator(clampedFrom, clampedTo, total)
   } else {
     renderRange(1, total)
-    buildTimeline(osmd)
     clearRangeIndicator()
   }
+  reattachMeterCanvas(getOsmdContainer())
+  buildTimeline(osmd)
   notePixelPositions = buildCursorPixelPositions(getOsmdContainer())
   cursorIdx = 0
   setLoopEnabled(enabled)
@@ -570,6 +588,7 @@ async function handlePartClick(): Promise<void> {
   setPartButton(label)
   if (sel.instrumentId) applyInstrument(sel.instrumentId)
   renderOsmdScore()
+  reattachMeterCanvas(getOsmdContainer())
   const osmd = getOsmd()
   if (!osmd) return
   buildTimeline(osmd)

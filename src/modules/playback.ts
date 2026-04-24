@@ -244,7 +244,16 @@ export async function play(): Promise<void> {
   await Tone.start()
   await Tone.loaded()   // wait for all buffers regardless of onload callback
   if (Tone.getTransport().state === 'paused') {
-    Tone.getTransport().start()
+    if (seekOffsetSec !== null) {
+      // User seeked while paused — discard paused position, jump to new offset.
+      Tone.getTransport().cancel()
+      scheduleEvents()
+      Tone.getTransport().stop()
+      Tone.getTransport().start('+0.01', seekOffsetSec)
+      seekOffsetSec = null
+    } else {
+      Tone.getTransport().start()
+    }
     return
   }
   scheduleEvents()
@@ -306,7 +315,10 @@ export function seekToEvent(evIdx: number): void {
   if (wasRunning) {
     Tone.getTransport().cancel()
     scheduleEvents()
-    Tone.getTransport().start('+0', seekOffsetSec)
+    // start() while already started is a no-op in Tone.js v15; stop first then restart
+    Tone.getTransport().stop()
+    Tone.getTransport().start('+0.01', seekOffsetSec)
+    seekOffsetSec = null
   }
 }
 

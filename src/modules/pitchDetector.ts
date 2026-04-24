@@ -89,6 +89,13 @@ export function stopPitchDetection(): void {
   if (meterCanvas) { meterCanvas.style.display = 'none' }
 }
 
+// OSMD's render() replaces its container's DOM, ejecting the meter canvas.
+// Call this after every render when pitch detection may be active.
+export function reattachMeterCanvas(el: HTMLElement): void {
+  if (!meterCanvas || meterCanvas.style.display === 'none') return
+  if (!el.contains(meterCanvas)) el.appendChild(meterCanvas)
+}
+
 function centsToY(cents: number): number {
   const clamped = Math.max(-DISPLAY_CENTS, Math.min(DISPLAY_CENTS, cents))
   return METER_PAD + DISPLAY_CENTS - clamped   // sharp → low y, flat → high y

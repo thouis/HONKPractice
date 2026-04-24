@@ -64,3 +64,32 @@ export function toggleDebugPanel(): void {
 }
 
 export function isDebugVisible(): boolean { return visible }
+
+// ── Playback HUD ─────────────────────────────────────────────────────────────
+// Small fixed overlay in the upper-right showing current measure/note.
+// Updated via Tone.getDraw() so it fires after the audio engine commits notes.
+
+let hudEl: HTMLDivElement | null = null
+let hudVisible = false
+
+export function initPlaybackHud(): void {
+  if (hudEl) return
+  hudEl = document.createElement('div')
+  hudEl.style.cssText =
+    'position:fixed;top:8px;right:8px;padding:5px 12px;' +
+    'background:rgba(10,10,20,0.88);color:#a6e3a1;font:12px/1.5 monospace;' +
+    'border-radius:5px;z-index:9998;display:none;pointer-events:none;' +
+    'white-space:pre;letter-spacing:0.04em;'
+  document.body.appendChild(hudEl)
+}
+
+export function setPlaybackHudVisible(v: boolean): void {
+  hudVisible = v
+  if (hudEl) hudEl.style.display = v ? '' : 'none'
+}
+
+// Called from inside Tone.getDraw() callback — after audio engine has fired.
+export function updatePlaybackHud(measureDisplay: string, noteNames: string): void {
+  if (!hudEl || !hudVisible) return
+  hudEl.textContent = `${measureDisplay}  ${noteNames}`
+}
