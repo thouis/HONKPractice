@@ -22,6 +22,7 @@ let animId: number | null = null
 let meterCanvas: HTMLCanvasElement | null = null
 let meterCtx: CanvasRenderingContext2D | null = null
 let inputBuffer: Float32Array<ArrayBuffer> | null = null
+let micStream: MediaStream | null = null
 let expectedHz = 0
 let thresholdCents = 20
 
@@ -68,9 +69,11 @@ export async function startPitchDetection(el: HTMLElement): Promise<void> {
   }
   meterCanvas.style.display = ''
 
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+  micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
   audioCtx = new AudioContext()
-  const source = audioCtx.createMediaStreamSource(stream)
+  // iOS Safari creates AudioContext in suspended state even from a user gesture.
+  if (audioCtx.state === 'suspended') await audioCtx.resume()
+  const source = audioCtx.createMediaStreamSource(micStream)
   analyser = audioCtx.createAnalyser()
   analyser.fftSize = 8192   // larger buffer → better low-frequency resolution
   source.connect(analyser)
@@ -85,6 +88,8 @@ export async function startPitchDetection(el: HTMLElement): Promise<void> {
 export function stopPitchDetection(): void {
   if (animId !== null) { cancelAnimationFrame(animId); animId = null }
   if (audioCtx) { audioCtx.close(); audioCtx = null }
+  micStream?.getTracks().forEach(t => t.stop())
+  micStream = null
   analyser = null; detector = null; inputBuffer = null
   if (meterCanvas) { meterCanvas.style.display = 'none' }
 }

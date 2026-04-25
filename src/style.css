@@ -10,6 +10,7 @@ body {
 #app {
   display: flex;
   flex-direction: column;
+  min-height: -webkit-fill-available; /* iOS <16 fallback */
   min-height: 100svh;
 }
 
@@ -28,27 +29,35 @@ body {
 .app-title { font-weight: bold; font-size: 16px; }
 .score-title { flex: 1; text-align: center; opacity: 0.8; font-size: 13px; }
 
-/* Controls bar */
+/* Controls bar — horizontally scrollable on narrow screens */
 .controls-bar {
   position: sticky;
-  top: 40px;   /* approx toolbar height; controls stack below it */
+  top: var(--toolbar-h, 40px); /* set dynamically from JS; 40px fallback */
   z-index: 99;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 8px;
   padding: 6px 16px;
   background: #eeeee8;
   border-bottom: 1px solid #ccc;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;       /* Firefox */
+  touch-action: pan-x;         /* no 300ms delay; allow horizontal swipe */
 }
+.controls-bar::-webkit-scrollbar { display: none; }
 
 .btn {
-  padding: 4px 10px;
+  padding: 10px 12px;          /* ~44px tall for comfortable touch targets */
   border: 1px solid #999;
   border-radius: 4px;
   background: #fff;
   cursor: pointer;
   font-size: 13px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  touch-action: manipulation;  /* no double-tap zoom delay */
 }
 .btn:hover { background: #e8e8e0; }
 .btn-active { background: #1a1a2e; color: #fff; border-color: #1a1a2e; }
@@ -77,6 +86,12 @@ body {
   position: relative;
   background: #fff;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  touch-action: pan-x pan-y;  /* allow scroll/pinch; no double-tap delay */
+}
+
+/* Hide file-picker on mobile — users can't easily access MusicXML files there */
+@media (pointer: coarse) {
+  .toolbar-load-btn { display: none; }
 }
 
 /* Hint labels injected by positionAdvisor */

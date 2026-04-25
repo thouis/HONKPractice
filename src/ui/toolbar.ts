@@ -23,7 +23,7 @@ export function createToolbar(
 
   const loadBtn = document.createElement('button')
   loadBtn.textContent = 'Load File'
-  loadBtn.className = 'btn'
+  loadBtn.className = 'btn toolbar-load-btn'
   loadBtn.onclick = onLoad
 
   const settingsBtn = document.createElement('button')

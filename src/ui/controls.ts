@@ -22,7 +22,7 @@ export interface ControlCallbacks {
 }
 
 let bpmDisplay: HTMLSpanElement
-let tempoSlider: HTMLInputElement
+let tempoSelect: HTMLSelectElement
 let playPauseBtn: HTMLButtonElement
 let metBtn: HTMLButtonElement
 let hintsBtn: HTMLButtonElement
@@ -36,6 +36,7 @@ let partBtn: HTMLButtonElement
 let instrumentSelect: HTMLSelectElement
 let loopBtnState = false  // single source of truth for loop button state
 let hintsModeState: HintsMode = 0
+let metOnState = false
 
 export function createControls(cbs: ControlCallbacks): HTMLElement {
   const bar = document.createElement('div')
@@ -59,28 +60,36 @@ export function createControls(cbs: ControlCallbacks): HTMLElement {
 
   // --- Tempo ---
   const tempoLabel = document.createElement('label')
-  tempoLabel.textContent = 'Tempo: '
+  tempoLabel.textContent = 'Speed:'
+  tempoLabel.style.cssText = 'font-size:13px;white-space:nowrap;flex-shrink:0;'
+
+  tempoSelect = document.createElement('select')
+  tempoSelect.style.cssText =
+    'font-size:13px;padding:3px 4px;border:1px solid #999;border-radius:4px;' +
+    'background:#fff;cursor:pointer;flex-shrink:0;'
+  for (const [ratio, label] of [[0.5,'0.5×'],[0.75,'0.75×'],[1.0,'1×'],[1.25,'1.25×'],[1.5,'1.5×'],[2.0,'2×']] as [number,string][]) {
+    const opt = document.createElement('option')
+    opt.value = String(ratio)
+    opt.textContent = label
+    if (ratio === 1.0) opt.selected = true
+    tempoSelect.appendChild(opt)
+  }
+  tempoSelect.onchange = () => cbs.onTempoChange(parseFloat(tempoSelect.value))
+
   bpmDisplay = document.createElement('span')
   bpmDisplay.id = 'bpm-display'
   bpmDisplay.textContent = '120 BPM'
-  tempoSlider = document.createElement('input')
-  tempoSlider.type = 'range'
-  tempoSlider.min = '20'
-  tempoSlider.max = '300'
-  tempoSlider.value = '120'
-  tempoSlider.style.width = '120px'
-  tempoSlider.oninput = () => cbs.onTempoChange(parseInt(tempoSlider.value))
+  bpmDisplay.style.cssText = 'font-size:12px;color:#555;min-width:54px;flex-shrink:0;'
 
   // --- Metronome ---
   metBtn = document.createElement('button')
   metBtn.textContent = 'Met: OFF'
   metBtn.className = 'btn'
-  let metOn = false
   metBtn.onclick = () => {
-    metOn = !metOn
-    metBtn.textContent = `Met: ${metOn ? 'ON' : 'OFF'}`
-    metBtn.classList.toggle('btn-active', metOn)
-    cbs.onMetronomeToggle(metOn)
+    metOnState = !metOnState
+    metBtn.textContent = `Met: ${metOnState ? 'ON' : 'OFF'}`
+    metBtn.classList.toggle('btn-active', metOnState)
+    cbs.onMetronomeToggle(metOnState)
   }
 
   // --- Hints (3-state cycle: off → pos → pos+partial → off) ---
@@ -236,7 +245,7 @@ export function createControls(cbs: ControlCallbacks): HTMLElement {
   }
   instrumentSelect.onchange = () => cbs.onInstrumentChange(instrumentSelect.value)
 
-  bar.append(rewindBtn, playPauseBtn, stopBtn, tempoLabel, tempoSlider, bpmDisplay,
+  bar.append(rewindBtn, playPauseBtn, stopBtn, tempoLabel, tempoSelect, bpmDisplay,
     selectBtn, partBtn,
     metBtn, hintsBtn, voiceBtn, pitchBtn, thresholdLabel, thresholdInput, thresholdUnit,
     loopBtn, loopFromInput, loopSep, loopToInput, loopRestBtn,
@@ -248,9 +257,11 @@ export function updateBpmDisplay(bpm: number): void {
   if (bpmDisplay) bpmDisplay.textContent = `${Math.round(bpm)} BPM`
 }
 
-export function setTempoSlider(bpm: number): void {
-  if (!tempoSlider) return
-  tempoSlider.value = String(Math.round(Math.max(20, Math.min(300, bpm))))
+// Reset dropdown to 1× on new score load (written BPM stays in the BPM display)
+export function setTempoDropdown(ratio: number): void {
+  if (!tempoSelect) return
+  const str = String(ratio)
+  if ([...tempoSelect.options].some(o => o.value === str)) tempoSelect.value = str
 }
 
 export function setPlayPauseIcon(playing: boolean): void {
@@ -303,6 +314,13 @@ export function resetLoopControl(totalBars: number): void {
 // Sync the instrument selector to reflect an externally-applied change.
 export function setInstrumentSelect(id: string): void {
   if (instrumentSelect) instrumentSelect.value = id
+}
+
+export function setMetronomeButton(on: boolean): void {
+  if (!metBtn) return
+  metOnState = on
+  metBtn.textContent = `Met: ${on ? 'ON' : 'OFF'}`
+  metBtn.classList.toggle('btn-active', on)
 }
 
 export function setHintsMode(mode: HintsMode): void {

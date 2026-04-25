@@ -1,7 +1,7 @@
 import { createToolbar, setScoreTitle } from './ui/toolbar'
-import { createControls, updateBpmDisplay, setTempoSlider, setPlayPauseIcon, resetLoopControl,
+import { createControls, updateBpmDisplay, setTempoDropdown, setPlayPauseIcon, resetLoopControl,
          setSelectBtnState, setLoopUI, setPartButton, setInstrumentSelect, setHintsMode,
-         type HintsMode, type VoiceMode } from './ui/controls'
+         setMetronomeButton, type HintsMode, type VoiceMode } from './ui/controls'
 import { createScorePanel, getOsmdContainer, getBeatIndicator, setRangeIndicator, clearRangeIndicator } from './ui/scorePanel'
 import { openFilePicker } from './modules/scoreLoader'
 import { initDisplay, loadOsmdScore, renderOsmdScore, getOsmd, resetCursor, advanceCursor,
@@ -67,6 +67,12 @@ export async function initApp(root: HTMLElement): Promise<void> {
     onDebugHud:        setPlaybackHudVisible,
   })
   const toolbar = createToolbar(handleLoadScore, openLibraryPanel, openSettingsPanel, openHelpPanel)
+  // Keep --toolbar-h in sync so the sticky controls bar sits flush beneath it.
+  const syncToolbarHeight = () =>
+    document.documentElement.style.setProperty('--toolbar-h', toolbar.offsetHeight + 'px')
+  new ResizeObserver(syncToolbarHeight).observe(toolbar)
+  syncToolbarHeight()
+
   const scorePanel = createScorePanel()
   const controls = createControls({
     onPlayPause: handlePlayPause,
@@ -95,6 +101,8 @@ export async function initApp(root: HTMLElement): Promise<void> {
   })
   await initDisplay(getOsmdContainer())
   initMetronome(getBeatIndicator())
+  setMetronomeEnabled(metronomeOn)
+  setMetronomeButton(metronomeOn)
 
   initPlaybackHud()
 
@@ -222,9 +230,8 @@ async function renderScore(xml: string, titleHint: string): Promise<void> {
   if (getTimeline().length === 0) notify('No playable notes found in this score', 'warning')
   notePixelPositions = buildCursorPixelPositions(getOsmdContainer())
   setTempoRatio(1.0)
-  const writtenBpm = getWrittenBpm()
-  setTempoSlider(writtenBpm)
-  updateBpmDisplay(writtenBpm)
+  setTempoDropdown(1.0)
+  updateBpmDisplay(getWrittenBpm())
 
   const container = getOsmdContainer()
   computeAndRenderHints(osmd, container, hintsMode, currentVoice, currentInstrument)
@@ -412,9 +419,9 @@ function handleStop(): void {
 }
 
 
-function handleTempoChange(bpm: number): void {
-  setTempoRatio(bpm / getWrittenBpm())
-  updateBpmDisplay(bpm)
+function handleTempoChange(ratio: number): void {
+  setTempoRatio(ratio)
+  updateBpmDisplay(Math.round(ratio * getWrittenBpm()))
 }
 
 function handleMetronomeToggle(on: boolean): void {
@@ -587,6 +594,7 @@ async function handlePartClick(): Promise<void> {
     : (parts.find(p => p.index === sel.indices[0])?.name ?? 'Part')
   setPartButton(label)
   if (sel.instrumentId) applyInstrument(sel.instrumentId)
+  handleStop()
   renderOsmdScore()
   reattachMeterCanvas(getOsmdContainer())
   const osmd = getOsmd()

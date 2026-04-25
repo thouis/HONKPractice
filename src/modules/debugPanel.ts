@@ -76,7 +76,10 @@ export function initPlaybackHud(): void {
   if (hudEl) return
   hudEl = document.createElement('div')
   hudEl.style.cssText =
-    'position:fixed;top:8px;right:8px;padding:5px 12px;' +
+    'position:fixed;' +
+    'bottom:max(8px,env(safe-area-inset-bottom));' +
+    'right:max(8px,env(safe-area-inset-right));' +
+    'padding:5px 12px;' +
     'background:rgba(10,10,20,0.88);color:#a6e3a1;font:12px/1.5 monospace;' +
     'border-radius:5px;z-index:9998;display:none;pointer-events:none;' +
     'white-space:pre;letter-spacing:0.04em;'

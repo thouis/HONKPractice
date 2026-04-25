@@ -24,6 +24,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        skipWaiting: true,    // new SW activates immediately on update
+        clientsClaim: true,   // new SW takes control of all tabs right away
         maximumFileSizeToCacheInBytes: 10_000_000,
         globPatterns: ['**/*.{js,css,html,ico,png,mp3}'],
       },
