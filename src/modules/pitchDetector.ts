@@ -67,6 +67,7 @@ export async function startPitchDetection(el: HTMLElement): Promise<void> {
     el.appendChild(meterCanvas)
     meterCtx = meterCanvas.getContext('2d')!
   }
+  if (!el.contains(meterCanvas)) el.appendChild(meterCanvas)
   meterCanvas.style.display = ''
 
   micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
