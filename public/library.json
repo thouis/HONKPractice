@@ -36,18 +36,18 @@
   {
     "group": "BABAM",
     "entries": [
-      { "title": "Chameleon (melody)",              "file": "scores/melody-chameleon.xml" },
-      { "title": "La Murga (melody)",               "file": "scores/melody-la_murga.xml" },
-      { "title": "Let's Go / Overcome (melody)",    "file": "scores/melody-lets_go_overcome.xml" },
-      { "title": "Little Light (melody)",           "file": "scores/melody-little_light.xml" },
-      { "title": "Mercy (melody)",                  "file": "scores/melody-mercy.xml" },
-      { "title": "Push It (melody)",                "file": "scores/melody-push_it.xml" },
-      { "title": "Riverside (melody)",              "file": "scores/melody-riverside.xml" },
-      { "title": "Saints in Concert (melody)",      "file": "scores/melody-saints_in_concert_f.xml" },
-      { "title": "Second Line (melody)",            "file": "scores/melody-second_line.xml" },
-      { "title": "Space Cadet (melody)",            "file": "scores/melody-space_cadet.xml" },
-      { "title": "Watermelon Man (melody)",         "file": "scores/melody-watermelon_man.xml" },
-      { "title": "We Got That Fire (melody)",       "file": "scores/melody-we_got_that_fire.xml" }
+      { "title": "Chameleon",              "file": "scores/babam-chameleon.xml" },
+      { "title": "La Murga",               "file": "scores/babam-la_murga.xml" },
+      { "title": "Let's Go / Overcome",    "file": "scores/babam-lets_go_overcome.xml" },
+      { "title": "Little Light",           "file": "scores/babam-little_light.xml" },
+      { "title": "Mercy",                  "file": "scores/babam-mercy.xml" },
+      { "title": "Push It",                "file": "scores/babam-push_it.xml" },
+      { "title": "Riverside",              "file": "scores/babam-riverside.xml" },
+      { "title": "Saints in Concert",      "file": "scores/babam-saints_in_concert_f.xml" },
+      { "title": "Second Line",            "file": "scores/babam-second_line.xml" },
+      { "title": "Space Cadet",            "file": "scores/babam-space_cadet.xml" },
+      { "title": "Watermelon Man",         "file": "scores/babam-watermelon_man.xml" },
+      { "title": "We Got That Fire",       "file": "scores/babam-we_got_that_fire.xml" }
     ]
   }
 ]
