@@ -16,6 +16,10 @@
     "file": "scores/soh-blackbird-special-noteflight.xml"
   },
   {
+    "title": "Chameleon (melody)",
+    "file": "scores/melody-chameleon.xml"
+  },
+  {
     "title": "Cler Achel",
     "file": "scores/soh-cler-achel-noteflight.xml"
   },
@@ -56,12 +60,28 @@
     "file": "scores/soh-la-murga-de-panama-noteflight.xml"
   },
   {
+    "title": "La Murga (melody)",
+    "file": "scores/melody-la_murga.xml"
+  },
+  {
     "title": "Lady",
     "file": "scores/soh-lady-noteflight.xml"
   },
   {
     "title": "Let's Go Get 'Em",
     "file": "scores/soh-lets-go-get-em-noteflight.xml"
+  },
+  {
+    "title": "Let's Go / Overcome (melody)",
+    "file": "scores/melody-lets_go_overcome.xml"
+  },
+  {
+    "title": "Little Light (melody)",
+    "file": "scores/melody-little_light.xml"
+  },
+  {
+    "title": "Mercy (melody)",
+    "file": "scores/melody-mercy.xml"
   },
   {
     "title": "Oye Como Va",
@@ -72,8 +92,16 @@
     "file": "scores/soh-push-it-noteflight.xml"
   },
   {
+    "title": "Push It (melody)",
+    "file": "scores/melody-push_it.xml"
+  },
+  {
     "title": "Respect",
     "file": "scores/soh-respect-noteflight.xml"
+  },
+  {
+    "title": "Riverside (melody)",
+    "file": "scores/melody-riverside.xml"
   },
   {
     "title": "Rock Anthem",
@@ -84,8 +112,20 @@
     "file": "scores/soh-rock-lobster-noteflight.xml"
   },
   {
+    "title": "Saints in Concert (melody)",
+    "file": "scores/melody-saints_in_concert_f.xml"
+  },
+  {
+    "title": "Second Line (melody)",
+    "file": "scores/melody-second_line.xml"
+  },
+  {
     "title": "Soul Bossa Nova",
     "file": "scores/soh-soul-bossa-nova-noteflight.xml"
+  },
+  {
+    "title": "Space Cadet (melody)",
+    "file": "scores/melody-space_cadet.xml"
   },
   {
     "title": "Superstition",
@@ -108,8 +148,16 @@
     "file": "scores/soh-video-killed-the-radio-star-noteflight.xml"
   },
   {
+    "title": "Watermelon Man (melody)",
+    "file": "scores/melody-watermelon_man.xml"
+  },
+  {
     "title": "We Got That Fire",
     "file": "scores/soh-we-got-that-fire-noteflight.xml"
+  },
+  {
+    "title": "We Got That Fire (melody)",
+    "file": "scores/melody-we_got_that_fire.xml"
   },
   {
     "title": "You Move Ya Lose",
