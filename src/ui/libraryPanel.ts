@@ -129,7 +129,7 @@ function buildRemoteSection(): HTMLElement {
   const label = document.createElement('span')
   label.style.cssText = 'font-weight:bold;font-size:0.85rem;text-transform:uppercase;' +
     'letter-spacing:0.05em;color:#89b4fa;'
-  label.textContent = 'School of HONK Charts'
+  label.textContent = 'Online Library'
 
   const list = document.createElement('div')
   list.id = 'lib-remote-list'
@@ -149,34 +149,53 @@ async function refresh(): Promise<void> {
 }
 
 interface RemoteEntry { title: string; file: string }
-let remoteEntries: RemoteEntry[] | null = null
+interface RemoteGroup { group: string; entries: RemoteEntry[] }
+type LibraryData = RemoteGroup[] | RemoteEntry[]
+
+let libraryData: LibraryData | null = null
+
+function toGroups(data: LibraryData): RemoteGroup[] {
+  if (data.length === 0) return []
+  if ('group' in data[0]) return data as RemoteGroup[]
+  return [{ group: '', entries: data as RemoteEntry[] }]
+}
 
 async function refreshRemote(): Promise<void> {
   const list = document.getElementById('lib-remote-list')
   if (!list) return
-  if (!remoteEntries) {
+  if (!libraryData) {
     try {
       const base = (import.meta as any).env?.BASE_URL ?? '/'
       const res = await fetch(base + 'library.json')
-      remoteEntries = await res.json()
+      libraryData = await res.json()
     } catch {
       list.innerHTML = '<span style="font-size:0.8rem;color:#f38ba8;">Could not load chart list.</span>'
       return
     }
   }
   list.innerHTML = ''
-  for (const entry of remoteEntries ?? []) {
-    list.appendChild(scoreRowBase(entry.title, async () => {
-      close()
-      try {
-        const base = (import.meta as any).env?.BASE_URL ?? '/'
-        const res = await fetch(base + entry.file)
-        const xml = await res.text()
-        await onLoad(xml, entry.title)
-      } catch (e) {
-        notify('Failed to load ' + entry.title + ': ' + (e as Error).message, 'error')
-      }
-    }))
+  for (const group of toGroups(libraryData!)) {
+    if (group.group) {
+      const header = document.createElement('div')
+      header.textContent = group.group
+      header.style.cssText =
+        'font-weight:bold;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.06em;' +
+        'color:#89b4fa;margin-top:6px;padding:2px 0;'
+      list.appendChild(header)
+    }
+    for (const entry of group.entries) {
+      list.appendChild(scoreRowBase(entry.title, async () => {
+        close()
+        try {
+          const base = (import.meta as any).env?.BASE_URL ?? '/'
+          const res = await fetch(base + entry.file)
+          const xml = await res.text()
+          await onLoad(xml, entry.title)
+        } catch (e) {
+          notify('Failed to load ' + entry.title + ': ' + (e as Error).message, 'error')
+        }
+      }))
+    }
   }
 }
 
