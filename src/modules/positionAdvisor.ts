@@ -135,8 +135,11 @@ export function computeAndRenderHints(
 
     // Only render if there's at least one pitched note and DP produced a result.
     if (dpPos > 0 && chord[chord.length - 1] !== 0 && gnotes.length > 0) {
-      // Use any non-rest graphical note for position/page info.
-      const refGn = gnotes.find((g: any) => !g.sourceNote?.isRest?.()) ?? gnotes[0]
+      // Use a graphical note with a valid AbsolutePosition for layout info.
+      // GNotesUnderCursor() includes hidden-part notes whose AbsolutePosition is null.
+      const refGn = gnotes.find((g: any) =>
+        !g.sourceNote?.isRest?.() && g.PositionAndShape?.AbsolutePosition != null
+      ) ?? gnotes.find((g: any) => g.PositionAndShape?.AbsolutePosition != null)
       const absPos = refGn?.PositionAndShape?.AbsolutePosition
       if (absPos) {
         const staffTopY: number =
