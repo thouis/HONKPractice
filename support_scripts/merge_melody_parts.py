@@ -1,6 +1,22 @@
 """
 Export MuseScore melody parts to MusicXML and merge each song's
 Bb/C/Eb/Cbass variants into a single multi-part MusicXML file.
+
+Source layout:
+  melody/Bb/       Bb treble instruments (renamed → "Bb")
+  melody/C/        C treble instruments  (renamed → "C")
+  melody/Eb/       Eb treble instruments (renamed → "Eb")
+  melody/Cbass/    C bass-clef           (keeps MuseScore name "Trombone")
+
+A companion bass folder exists at /Users/thouis/Downloads/musescore/bass/:
+  bass/Bbtreble/   Bb treble bass line   (rename → "Bb bass")
+  bass/C/          C bass-clef bass line (rename → "C bass")
+  bass/Ebtreble/   Eb treble bass line   (note: MuseScore names it "Bb Trumpet";
+                                          rename → "Eb bass")
+
+When ready to merge melody + bass into combined scores, update KEYS/KEY_PART_NAMES
+to pull from both folders and label parts "Bb melody"/"Bb bass" etc., then drop
+the "(melody)" suffix from the library.json entries.
 """
 
 import copy
