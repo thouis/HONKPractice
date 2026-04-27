@@ -46,6 +46,11 @@ export function getRenderedRange(): { from: number; to: number } {
   return { from: renderedFrom, to: renderedTo }
 }
 
+export function setLyricsVisible(visible: boolean): void {
+  if (!osmdInstance) return
+  ;(osmdInstance as any).EngravingRules.RenderLyrics = visible
+}
+
 export function renderOsmdScore(): void {
   if (!osmdInstance) return
   renderedFrom = 1; renderedTo = 9999

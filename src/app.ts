@@ -6,7 +6,7 @@ import { createScorePanel, getOsmdContainer, getBeatIndicator, setRangeIndicator
 import { openFilePicker } from './modules/scoreLoader'
 import { initDisplay, loadOsmdScore, renderOsmdScore, getOsmd, resetCursor, advanceCursor,
          getMeasureCount, renderRange, initScrollSuppression, scrollCursorIntoView,
-         buildCursorPixelPositions, getPartNames, setVisibleParts } from './modules/scoreDisplay'
+         buildCursorPixelPositions, getPartNames, setVisibleParts, setLyricsVisible } from './modules/scoreDisplay'
 import { initSampler, buildTimeline, play, pause, stop, setTempoRatio,
          getWrittenBpm, getTempoRatio, getTransportState, onCursorAdvance,
          setLoopEnabled, setLoopRestEnabled, setVoiceMode, setMusicVolume, setMusicMuted,
@@ -203,6 +203,7 @@ async function renderScore(xml: string, titleHint: string): Promise<void> {
     currentPartIndices = null
     setPartButton(null)
   }
+  setLyricsVisible(hintsMode === 0)
   renderOsmdScore()
 
   const osmd = getOsmd()
@@ -434,7 +435,13 @@ function handleMetronomeToggle(on: boolean): void {
 function handleHintsChange(mode: HintsMode): void {
   hintsMode = mode
   const osmd = getOsmd()
-  if (osmd) computeAndRenderHints(osmd, getOsmdContainer(), mode, currentVoice, currentInstrument)
+  if (osmd) {
+    setLyricsVisible(mode === 0)
+    renderOsmdScore()
+    reattachMeterCanvas(getOsmdContainer())
+    notePixelPositions = buildCursorPixelPositions(getOsmdContainer())
+    computeAndRenderHints(osmd, getOsmdContainer(), mode, currentVoice, currentInstrument)
+  }
   saveSettings({ hintsMode: mode, metronomeOn, instrumentId: currentInstrument.id })
 }
 
