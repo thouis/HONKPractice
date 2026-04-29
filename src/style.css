@@ -94,35 +94,17 @@ body {
   .toolbar-load-btn { display: none; }
 }
 
-/* Smaller UI on mobile */
-@media (pointer: coarse) {
-  body { font-size: 11px; }
-  .app-title { font-size: 12px; }
-  .score-title { font-size: 10px; }
-  .toolbar { gap: 8px; padding: 5px 10px; }
-  .controls-bar { gap: 5px; padding: 4px 10px; }
-  .btn { padding: 7px 8px; font-size: 10px; }
-  #bpm-display { font-size: 10px; min-width: 44px; }
-  .hint-label { font-size: 8px; }
-}
-
-/* Even smaller in landscape on mobile */
-@media (pointer: coarse) and (orientation: landscape) {
-  body { font-size: 10px; }
-  .app-title { font-size: 11px; }
-  .score-title { font-size: 9px; }
-  .toolbar { padding: 3px 8px; }
-  .controls-bar { padding: 3px 8px; }
-  .btn { padding: 5px 7px; font-size: 9px; }
-  #bpm-display { font-size: 9px; min-width: 38px; }
-}
 
 /* Hint labels injected by positionAdvisor */
 .hint-label {
   font-family: monospace;
-  font-size: 10px;
+  font-size: 18px;
   color: #1a1a2e;
   font-weight: bold;
   pointer-events: none;
   white-space: nowrap;
+}
+
+@media (pointer: coarse) and (orientation: landscape) {
+  .hint-label { font-size: 13px; }
 }

@@ -15,7 +15,6 @@ function def(id: string, name: string, folder: string, notes: string[]): Instrum
   return { id, name, samplePath: `samples/${folder}/`, sampleMap, ...noHints }
 }
 
-export const trumpetDef    = def('trumpet',      'Trumpet',       'trumpet',      ['A3','C4','Eb4','Gb4','A4','C5','Eb5','Gb5','A5'])
 export const frenchHornDef = def('french_horn',  'French Horn',   'french_horn',  ['A2','C3','Eb3','Gb3','A3','C4','Eb4','Gb4','A4'])
 export const tubaDef       = def('tuba',         'Tuba',          'tuba',         ['A1','C2','Eb2','Gb2','A2','C3','Eb3'])
 export const fluteDef      = def('flute',        'Flute',         'flute',        ['C4','Eb4','Gb4','A4','C5','Eb5','Gb5','A5','C6'])

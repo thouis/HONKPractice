@@ -182,7 +182,7 @@ export function computeAndRenderHints(
 
         const div = document.createElement('div')
         div.className = 'hint-label'
-        div.style.cssText = `position:absolute;left:${baseX}px;top:${staffBottomY}px;font-size:18px;color:#1a1a2e;font-weight:bold;pointer-events:none;white-space:nowrap;`
+        div.style.cssText = `position:absolute;left:${baseX}px;top:${staffBottomY}px;`
         if (instrument.showPartial && mode === 2 && entry.partial !== undefined) {
           div.innerHTML = `${entry.label}<sup style="font-size:11px;vertical-align:super;">${entry.partial}</sup>`
         } else {

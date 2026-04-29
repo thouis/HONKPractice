@@ -51,10 +51,19 @@ export function setLyricsVisible(visible: boolean): void {
   ;(osmdInstance as any).EngravingRules.RenderLyrics = visible
 }
 
+// Returns an appropriate zoom for the current viewport.
+// Smaller on touch devices so more measures fit on screen; even smaller in landscape
+// where vertical space is the binding constraint.
+function scoreZoom(): number {
+  if (!window.matchMedia('(pointer: coarse)').matches) return 1.0
+  return window.innerWidth > window.innerHeight ? 0.60 : 0.75
+}
+
 export function renderOsmdScore(): void {
   if (!osmdInstance) return
   renderedFrom = 1; renderedTo = 9999
   osmdInstance.setOptions({ drawFromMeasureNumber: 1, drawUpToMeasureNumber: 9999 })
+  osmdInstance.zoom = scoreZoom()
   osmdInstance.render()
   osmdInstance.enableOrDisableCursors(true)
   osmdInstance.cursor.show()

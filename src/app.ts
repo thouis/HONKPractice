@@ -139,14 +139,22 @@ export async function initApp(root: HTMLElement): Promise<void> {
 
   initScrollSuppression()
 
-  // Re-run hints and rebuild click map when the score container resizes.
+  // Re-render at the correct zoom and rebuild layout data when the container resizes
+  // (covers both window resize and device orientation changes).
   let resizeTimer = 0
+  let lastOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
   new ResizeObserver(() => {
     clearTimeout(resizeTimer)
     resizeTimer = window.setTimeout(() => {
       const osmd = getOsmd()
       const container = getOsmdContainer()
       if (!osmd) return
+      const orientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
+      if (orientation !== lastOrientation) {
+        lastOrientation = orientation
+        renderOsmdScore()
+        reattachMeterCanvas(container)
+      }
       computeAndRenderHints(osmd, container, hintsMode, currentVoice, currentInstrument)
       notePixelPositions = buildCursorPixelPositions(container)
       updateMeterAnchor()

@@ -38,13 +38,17 @@ let loopBtnState = false  // single source of truth for loop button state
 let hintsModeState: HintsMode = 0
 let metOnState = false
 
+const SELECT_STYLE =
+  'font-size:13px;padding:3px 6px;border:1px solid #999;border-radius:4px;' +
+  'background:#fff;cursor:pointer;flex-shrink:0;'
+
 export function createControls(cbs: ControlCallbacks): HTMLElement {
   const bar = document.createElement('div')
   bar.className = 'controls-bar'
 
   // --- Transport ---
   const rewindBtn = document.createElement('button')
-  rewindBtn.textContent = '⏮'
+  rewindBtn.textContent = '|◀'
   rewindBtn.className = 'btn'
   rewindBtn.onclick = cbs.onStop
 
@@ -54,7 +58,7 @@ export function createControls(cbs: ControlCallbacks): HTMLElement {
   playPauseBtn.onclick = cbs.onPlayPause
 
   const stopBtn = document.createElement('button')
-  stopBtn.textContent = '⏹'
+  stopBtn.textContent = '■'
   stopBtn.className = 'btn'
   stopBtn.onclick = cbs.onStop
 
@@ -65,8 +69,8 @@ export function createControls(cbs: ControlCallbacks): HTMLElement {
 
   tempoSelect = document.createElement('select')
   tempoSelect.style.cssText =
-    'font-size:13px;padding:3px 4px;border:1px solid #999;border-radius:4px;' +
-    'background:#fff;cursor:pointer;flex-shrink:0;'
+    'font-size:13px;padding:3px 2px;border:1px solid #999;border-radius:4px;' +
+    'background:#fff;cursor:pointer;flex-shrink:0;max-width:58px;'
   for (const [ratio, label] of [[0.5,'0.5×'],[0.75,'0.75×'],[1.0,'1×'],[1.25,'1.25×'],[1.5,'1.5×'],[2.0,'2×']] as [number,string][]) {
     const opt = document.createElement('option')
     opt.value = String(ratio)
@@ -78,8 +82,8 @@ export function createControls(cbs: ControlCallbacks): HTMLElement {
 
   bpmDisplay = document.createElement('span')
   bpmDisplay.id = 'bpm-display'
-  bpmDisplay.textContent = '120 BPM'
-  bpmDisplay.style.cssText = 'font-size:12px;color:#555;min-width:54px;flex-shrink:0;'
+  bpmDisplay.innerHTML = '120<br>BPM'
+  bpmDisplay.style.cssText = 'font-size:12px;color:#555;min-width:36px;flex-shrink:0;line-height:1.2;text-align:center;'
 
   // --- Metronome ---
   metBtn = document.createElement('button')
@@ -227,15 +231,12 @@ export function createControls(cbs: ControlCallbacks): HTMLElement {
   // --- Part selector (hidden until a multi-part score is loaded) ---
   partBtn = document.createElement('button')
   partBtn.textContent = 'Part'
-  partBtn.className = 'btn'
-  partBtn.style.display = 'none'
+  partBtn.style.cssText = SELECT_STYLE + 'display:none;'
   partBtn.onclick = cbs.onPartClick
 
   // --- Instrument selector ---
   instrumentSelect = document.createElement('select')
-  instrumentSelect.style.cssText =
-    'font-size:13px;padding:3px 6px;border:1px solid #999;border-radius:4px;' +
-    'background:#fff;cursor:pointer;'
+  instrumentSelect.style.cssText = SELECT_STYLE
   for (const [id, def] of Object.entries(INSTRUMENTS)) {
     const opt = document.createElement('option')
     opt.value = id
@@ -246,15 +247,15 @@ export function createControls(cbs: ControlCallbacks): HTMLElement {
   instrumentSelect.onchange = () => cbs.onInstrumentChange(instrumentSelect.value)
 
   bar.append(rewindBtn, playPauseBtn, stopBtn, tempoLabel, tempoSelect, bpmDisplay,
-    selectBtn, partBtn,
+    selectBtn,
     metBtn, hintsBtn, voiceBtn, pitchBtn, thresholdLabel, thresholdInput, thresholdUnit,
     loopBtn, loopFromInput, loopSep, loopToInput, loopRestBtn,
-    instrumentSelect)
+    partBtn, instrumentSelect)
   return bar
 }
 
 export function updateBpmDisplay(bpm: number): void {
-  if (bpmDisplay) bpmDisplay.textContent = `${Math.round(bpm)} BPM`
+  if (bpmDisplay) bpmDisplay.innerHTML = `${Math.round(bpm)}<br>BPM`
 }
 
 // Reset dropdown to 1× on new score load (written BPM stays in the BPM display)
@@ -335,9 +336,9 @@ export function setHintsMode(mode: HintsMode): void {
 export function setPartButton(partName: string | null): void {
   if (!partBtn) return
   if (partName === null) {
-    partBtn.style.display = 'none'
+    partBtn.style.cssText = SELECT_STYLE + 'display:none;'
   } else {
-    partBtn.style.display = ''
+    partBtn.style.cssText = SELECT_STYLE
     partBtn.textContent = `Part: ${partName}`
   }
 }

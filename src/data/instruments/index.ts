@@ -1,5 +1,6 @@
 import { tromboneDef } from './trombone'
-import { trumpetDef, frenchHornDef, tubaDef, fluteDef,
+import { trumpetDef } from './trumpet'
+import { frenchHornDef, tubaDef, fluteDef,
          clarinetDef, altoSaxDef, tenorSaxDef, bariSaxDef } from './keyed'
 import type { InstrumentDef } from '../../types'
 
