@@ -4,7 +4,8 @@ let osmdInstance: import('opensheetmusicdisplay').OpenSheetMusicDisplay | null =
 export async function initDisplay(container: HTMLElement): Promise<void> {
   const { OpenSheetMusicDisplay } = await import('opensheetmusicdisplay')
   osmdInstance = new OpenSheetMusicDisplay(container, {
-    autoResize: true,
+    autoResize: false,     // we manage re-renders via ResizeObserver; OSMD's own autoResize
+                           // clears the container (removing hint divs) without re-adding them
     followCursor: false,   // we manage scrolling manually so user can scroll freely
     drawingParameters: 'default',
     drawMeasureNumbers: true,
