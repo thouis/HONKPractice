@@ -102,7 +102,8 @@ export function buildTimeline(osmd: import('opensheetmusicdisplay').OpenSheetMus
         )
       }
 
-      midiNotes.push(n.halfTone + 12)
+      const playbackTranspose: number = n.ParentStaff?.ParentInstrument?.PlaybackTranspose ?? 0
+      midiNotes.push(n.halfTone + 12 + playbackTranspose)
       noteDurations.push(noteDur)
       if (durationFraction === 0) durationFraction = noteDur
     }
