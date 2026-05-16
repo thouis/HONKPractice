@@ -26,7 +26,7 @@ export async function readMusicXml(file: File): Promise<string> {
   return new TextDecoder().decode(buf)
 }
 
-function extractMxl(data: Uint8Array): string {
+export function extractMxl(data: Uint8Array): string {
   const entries = unzipSync(data)
 
   // Find rootfile path from META-INF/container.xml

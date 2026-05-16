@@ -116,7 +116,7 @@ export function computeAndRenderHints(
   const scaleX = svgRects[0].width / pageWidth
 
   const STAFF_HEIGHT = 4   // OSMD staff-space units, top line → bottom line
-  const HINT_PADDING_PX = 4
+  const HINT_PADDING_PX = 22
 
   const { from: visFrom, to: visTo } = getRenderedRange()
 
@@ -166,6 +166,19 @@ export function computeAndRenderHints(
           targetMidi = asc[0]  // 'all' and 'lowest' both show lowest
         }
         const isLowest = targetMidi === asc[0]
+
+        // Skip tie continuations — the player is already holding the note.
+        const targetGNote = gnotes.find((g: any) =>
+          !g.sourceNote?.isRest?.() && (g.sourceNote?.halfTone + 12) === targetMidi
+        )
+        const srcNote = targetGNote?.sourceNote
+        if (srcNote) {
+          const tie = srcNote.NoteTie
+          if (tie && tie.StartNote && tie.StartNote !== srcNote &&
+              tie.StartNote.halfTone === srcNote.halfTone) {
+            osmd.cursor.next(); idx++; continue
+          }
+        }
 
         let entry: FingeringEntry, alts: FingeringEntry[]
         if (isLowest) {

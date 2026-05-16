@@ -1,6 +1,6 @@
 import { listScores, addScore, deleteScore, type LibraryEntry } from '../modules/library'
 import { notify } from './notify'
-import { readMusicXml } from '../modules/scoreLoader'
+import { readMusicXml, extractMxl } from '../modules/scoreLoader'
 import {
   isFSAccessSupported, pickFolder, restoreFolder,
   listFolderScores, readFolderScore, type FolderEntry,
@@ -189,7 +189,12 @@ async function refreshRemote(): Promise<void> {
         try {
           const base = (import.meta as any).env?.BASE_URL ?? '/'
           const res = await fetch(base + entry.file)
-          const xml = await res.text()
+          let xml: string
+          if (entry.file.endsWith('.mxl')) {
+            xml = extractMxl(new Uint8Array(await res.arrayBuffer()))
+          } else {
+            xml = await res.text()
+          }
           await onLoad(xml, entry.title)
         } catch (e) {
           notify('Failed to load ' + entry.title + ': ' + (e as Error).message, 'error')
