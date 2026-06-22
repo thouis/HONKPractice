@@ -52,7 +52,7 @@ export function initSampler(baseUrl: string, sampleMap: Record<string, string>, 
 export function buildTimeline(osmd: import('opensheetmusicdisplay').OpenSheetMusicDisplay): void {
   timeline = []
   const sheet = (osmd as any).Sheet
-  writtenBpm = sheet?.SheetPlaybackSetting?.BeatsPerMinute ?? 120
+  writtenBpm = sheet?.userStartTempoInBPM || sheet?.DefaultStartTempoInBpm || sheet?.SheetPlaybackSetting?.BeatsPerMinute || 120
 
   osmd.cursor.reset()
   let idx = 0
