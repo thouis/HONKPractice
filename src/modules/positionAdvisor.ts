@@ -20,8 +20,19 @@ function extractMidiChords(osmd: OSMD): number[][] {
 
 function extractMidiChordsForPart(osmd: OSMD, partNamePattern: RegExp | null): number[][] {
   const chords: number[][] = []
+  let prevMaxMeasureIdx = -1
+  let lastMeasureIdx = -1
+  let skipping = false
   osmd.cursor.reset()
   while (!osmd.cursor.iterator.EndReached) {
+    const measureIdx = osmd.cursor.iterator.CurrentMeasureIndex
+    if (measureIdx < lastMeasureIdx) skipping = true
+    lastMeasureIdx = measureIdx
+    if (skipping) {
+      if (measureIdx > prevMaxMeasureIdx) { skipping = false }
+      else { osmd.cursor.next(); continue }
+    }
+    prevMaxMeasureIdx = measureIdx
     const notes = osmd.cursor.NotesUnderCursor()
     const midis: number[] = []
     for (const n of notes ?? []) {
@@ -236,8 +247,19 @@ function renderAllPartsHints(
 
   osmd.cursor.reset()
   let idx = 0
+  let prevMaxMeasureIdx = -1
+  let lastMeasureIdx = -1
+  let skipping = false
   while (!osmd.cursor.iterator.EndReached) {
-    const measureNum = osmd.cursor.iterator.CurrentMeasureIndex + 1
+    const measureIdx = osmd.cursor.iterator.CurrentMeasureIndex
+    if (measureIdx < lastMeasureIdx) skipping = true
+    lastMeasureIdx = measureIdx
+    if (skipping) {
+      if (measureIdx > prevMaxMeasureIdx) { skipping = false }
+      else { osmd.cursor.next(); continue }
+    }
+    prevMaxMeasureIdx = measureIdx
+    const measureNum = measureIdx + 1
     if (measureNum < visFrom || measureNum > visTo) {
       osmd.cursor.next(); idx++; continue
     }
@@ -300,9 +322,20 @@ export function computeAndRenderHints(
 
   osmd.cursor.reset()
   let idx = 0
+  let prevMaxMeasureIdx = -1
+  let lastMeasureIdx = -1
+  let skipping = false
 
   while (!osmd.cursor.iterator.EndReached) {
-    const measureNum = osmd.cursor.iterator.CurrentMeasureIndex + 1
+    const measureIdx = osmd.cursor.iterator.CurrentMeasureIndex
+    if (measureIdx < lastMeasureIdx) skipping = true
+    lastMeasureIdx = measureIdx
+    if (skipping) {
+      if (measureIdx > prevMaxMeasureIdx) { skipping = false }
+      else { osmd.cursor.next(); continue }
+    }
+    prevMaxMeasureIdx = measureIdx
+    const measureNum = measureIdx + 1
     if (measureNum < visFrom || measureNum > visTo) {
       osmd.cursor.next(); idx++; continue
     }
