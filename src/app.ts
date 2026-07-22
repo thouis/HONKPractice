@@ -148,7 +148,7 @@ export async function initApp(root: HTMLElement): Promise<void> {
     resizeTimer = window.setTimeout(() => {
       const osmd = getOsmd()
       const container = getOsmdContainer()
-      if (!osmd) return
+      if (!osmd || !osmd.cursor) return
       const orientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
       if (orientation !== lastOrientation) {
         lastOrientation = orientation

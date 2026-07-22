@@ -13,8 +13,25 @@ export async function initDisplay(container: HTMLElement): Promise<void> {
   })
 }
 
+// Clef per <part>, in document order — parsed straight from the source XML rather
+// than OSMD's internal object graph (ParentStaff/staff-Id links there are unreliable
+// after layout rebuilds the Staff objects).
+let partClefs: ('bass' | 'treble' | undefined)[] = []
+
+function parsePartClefs(xml: string): ('bass' | 'treble' | undefined)[] {
+  const doc = new DOMParser().parseFromString(xml, 'application/xml')
+  const parts = Array.from(doc.querySelectorAll('score-partwise > part'))
+  return parts.map((part) => {
+    const sign = part.querySelector('attributes > clef > sign')?.textContent?.trim()
+    if (sign === 'F') return 'bass'
+    if (sign === 'G') return 'treble'
+    return undefined
+  })
+}
+
 export async function loadOsmdScore(xml: string): Promise<void> {
   if (!osmdInstance) throw new Error('Display not initialized')
+  partClefs = parsePartClefs(xml)
   await osmdInstance.load(xml)
   fixGlissandoStartNotes()
 }
@@ -78,18 +95,11 @@ export async function loadAndRender(xml: string): Promise<void> {
 
 export function getPartNames(): { index: number; name: string; clef?: 'bass' | 'treble' }[] {
   const instruments: any[] = (osmdInstance as any)?.Sheet?.Instruments ?? []
-  return instruments.map((inst, i) => {
-    // Read the clef of the first staff's first source measure entry.
-    let clef: 'bass' | 'treble' | undefined
-    try {
-      const clefKey: string = inst.Staves?.[0]?.StaffLines?.[0]?.Clef?.clefType
-        ?? inst.Staves?.[0]?.Clef?.clefType
-        ?? ''
-      if (/bass/i.test(clefKey)) clef = 'bass'
-      else if (/treble|violin|G/i.test(clefKey)) clef = 'treble'
-    } catch { /* ignore */ }
-    return { index: i, name: inst.Name ?? `Part ${i + 1}`, clef }
-  })
+  return instruments.map((inst, i) => ({
+    index: i,
+    name: inst.Name ?? `Part ${i + 1}`,
+    clef: partClefs[i],
+  }))
 }
 
 export function setVisibleParts(indices: number[]): void {

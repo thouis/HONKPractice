@@ -57,7 +57,10 @@ export function pickPart(
     overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); resolve(fallback) } })
 
     // "All parts" row
-    list.appendChild(makeRow('All parts', null, isSavedAll, () => close(allIndices, null)))
+    list.appendChild(makeRow('All parts', null, isSavedAll, () => close(allIndices, null), null))
+
+    type Row = { label: string; subtitle: string | null; highlighted: boolean; onClick: () => void; clef: 'bass' | 'treble' | undefined; sortKey: string }
+    const rows: Row[] = []
 
     for (const part of parts) {
       const isSaved = !isSavedAll && (savedIndices?.includes(part.index) ?? false)
@@ -67,19 +70,25 @@ export function pickPart(
         // Unambiguous: show "Part Name" with instrument as subtitle if different
         const c = candidates[0]
         const subtitle = c.displayName !== part.name ? c.displayName : null
-        list.appendChild(makeRow(part.name, subtitle, isSaved, () => close([part.index], c.instrumentId)))
+        rows.push({
+          label: part.name, subtitle, highlighted: isSaved, clef: part.clef,
+          sortKey: c.displayName, onClick: () => close([part.index], c.instrumentId),
+        })
       } else {
         // Ambiguous: one row per candidate, labelled "Part Name (Instrument)"
         for (const c of candidates) {
           const highlighted = isSaved && c.isDefault
-          list.appendChild(makeRow(
-            `${part.name} (${c.displayName})`,
-            null,
-            highlighted,
-            () => close([part.index], c.instrumentId),
-          ))
+          rows.push({
+            label: `${part.name} (${c.displayName})`, subtitle: null, highlighted, clef: part.clef,
+            sortKey: c.displayName, onClick: () => close([part.index], c.instrumentId),
+          })
         }
       }
+    }
+
+    rows.sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+    for (const r of rows) {
+      list.appendChild(makeRow(r.label, r.subtitle, r.highlighted, r.onClick, r.clef ?? null))
     }
 
     panel.append(header, list)
@@ -88,15 +97,18 @@ export function pickPart(
   })
 }
 
+const CLEF_CHAR: Record<'bass' | 'treble', string> = { treble: '𝄞', bass: '𝄢' }
+
 function makeRow(
   label: string,
   subtitle: string | null,
   highlighted: boolean,
   onClick: () => void,
+  clef: 'bass' | 'treble' | null,
 ): HTMLElement {
   const row = document.createElement('div')
   row.style.cssText =
-    'padding:7px 12px;border-radius:4px;cursor:pointer;' +
+    'padding:7px 12px;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:8px;' +
     `background:${highlighted ? 'rgba(137,180,250,0.2)' : 'rgba(255,255,255,0.05)'};` +
     'border:1px solid ' + (highlighted ? 'rgba(137,180,250,0.5)' : 'transparent') + ';'
   row.onmouseenter = () => { row.style.background = 'rgba(137,180,250,0.15)' }
@@ -105,16 +117,24 @@ function makeRow(
   }
   row.onclick = onClick
 
+  const clefEl = document.createElement('div')
+  clefEl.textContent = clef ? CLEF_CHAR[clef] : ''
+  clefEl.style.cssText = 'width:1.4em;flex:none;font-size:1rem;opacity:0.7;text-align:center;'
+  row.appendChild(clefEl)
+
+  const textCol = document.createElement('div')
+  row.appendChild(textCol)
+
   const nameEl = document.createElement('div')
   nameEl.textContent = label
   nameEl.style.fontSize = '0.9rem'
-  row.appendChild(nameEl)
+  textCol.appendChild(nameEl)
 
   if (subtitle) {
     const sub = document.createElement('div')
     sub.textContent = subtitle
     sub.style.cssText = 'font-size:0.75rem;color:#6c7086;margin-top:1px;'
-    row.appendChild(sub)
+    textCol.appendChild(sub)
   }
 
   return row
