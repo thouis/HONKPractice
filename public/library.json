@@ -65,5 +65,11 @@
       { "title": "We Got That Fire (melody)",       "file": "scores/melody-we_got_that_fire.xml" },
       { "title": "We Got That Fire (bass)",         "file": "scores/bass-we_got_that_fire.xml" }
     ]
+  },
+  {
+    "group": "Other",
+    "entries": [
+      { "title": "Warm Jets",                       "file": "scores/warm_jets.mxl" }
+    ]
   }
 ]
