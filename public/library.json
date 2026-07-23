@@ -39,6 +39,7 @@
   {
     "group": "BABAM",
     "entries": [
+      { "title": "Bella Ciao",                      "file": "scores/babam-bella-ciao.xml" },
       { "title": "I'm Shipping Up to Boston",      "file": "scores/babam-im-shipping-up-to-boston.xml" },
       { "title": "Chameleon (melody)",              "file": "scores/melody-chameleon.xml" },
       { "title": "Chameleon (bass)",                "file": "scores/bass-chameleon.xml" },
