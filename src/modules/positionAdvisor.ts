@@ -7,6 +7,10 @@ import { trumpetDef } from '../data/instruments/trumpet'
 
 type OSMD = import('opensheetmusicdisplay').OpenSheetMusicDisplay
 
+function stripDiacritics(s: string): string {
+  return s.normalize('NFD').replace(/\p{Diacritic}/gu, '')
+}
+
 function noteToMidi(n: any): number {
   const pt: number = n.ParentStaff?.ParentInstrument?.PlaybackTranspose ?? 0
   return n.halfTone + 12 + pt
@@ -39,7 +43,7 @@ function extractMidiChordsForPart(osmd: OSMD, partNamePattern: RegExp | null): n
       if ((n as any).isRest?.()) continue
       if (partNamePattern !== null) {
         const instName: string = (n as any).ParentStaff?.ParentInstrument?.Name ?? ''
-        if (!partNamePattern.test(instName)) continue
+        if (!partNamePattern.test(stripDiacritics(instName))) continue
       }
       midis.push(noteToMidi(n as any))
     }
@@ -226,7 +230,7 @@ function renderAllPartsHints(
   mode: HintsMode,
 ): void {
   const parts = [
-    { nameRegex: /trombone/i, instrDef: tromboneDef, topOffset:  0 },
+    { nameRegex: /trombon/i,  instrDef: tromboneDef, topOffset:  0 },
     { nameRegex: /trumpet/i,  instrDef: trumpetDef,  topOffset: -6 },
   ] as const
 
@@ -272,7 +276,7 @@ function renderAllPartsHints(
 
       const partGn = gnotes.find((g: any) =>
         !g.sourceNote?.isRest?.() &&
-        nameRegex.test(g.sourceNote?.ParentStaff?.ParentInstrument?.Name ?? '') &&
+        nameRegex.test(stripDiacritics(g.sourceNote?.ParentStaff?.ParentInstrument?.Name ?? '')) &&
         g.PositionAndShape?.AbsolutePosition != null
       )
       if (!partGn || isTieContinuation(partGn.sourceNote)) return
@@ -300,7 +304,10 @@ export function computeAndRenderHints(
   clearHints()
   if (mode === 0) return
 
-  if (voiceMode === 'all') {
+  // With only one instrument in the score, there's nothing to split by name —
+  // always use the dropdown-selected instrument, regardless of part/instrument naming.
+  const instrumentCount: number = (osmd as any).Sheet?.Instruments?.length ?? 1
+  if (voiceMode === 'all' && instrumentCount > 1) {
     renderAllPartsHints(osmd, container, mode)
     return
   }

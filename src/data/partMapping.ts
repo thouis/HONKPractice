@@ -24,7 +24,7 @@ const RULES: Array<{
     candidates: [{ instrumentId: null, displayName: 'Percussion', isDefault: false }] },
 
   // ── Low brass ─────────────────────────────────────────────────────────────
-  { pattern: /trombone|tbn|trb/,
+  { pattern: /trombon|tbn|trb/,
     candidates: [{ instrumentId: 'trombone', displayName: 'Trombone', isDefault: false }] },
   { pattern: /euphonium|euph/,
     candidates: [{ instrumentId: 'trombone', displayName: 'Euphonium', isDefault: false }] },
@@ -136,7 +136,7 @@ export function matchPartCandidates(
   partName: string,
   clef?: 'bass' | 'treble',
 ): PartCandidate[] {
-  const lower = partName.toLowerCase()
+  const lower = partName.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
   for (const rule of RULES) {
     if (!rule.pattern.test(lower)) continue
     if (rule.clef && clef && rule.clef !== clef) continue
