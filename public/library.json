@@ -71,7 +71,8 @@
   {
     "group": "Other",
     "entries": [
-      { "title": "Warm Jets",                       "file": "scores/warm_jets.mxl" }
+      { "title": "Warm Jets",                       "file": "scores/warm_jets.mxl" },
+      { "title": "Better Off Alone",                "file": "scores/better_off_alone.xml" }
     ]
   }
 ]
