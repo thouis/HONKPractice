@@ -72,7 +72,9 @@
     "group": "Other",
     "entries": [
       { "title": "Warm Jets",                       "file": "scores/warm_jets.mxl" },
-      { "title": "Better Off Alone",                "file": "scores/better_off_alone.xml" }
+      { "title": "Better Off Alone",                "file": "scores/better_off_alone.xml" },
+      { "title": "Bb Blues (3 Trombones)",          "file": "scores/bb-blues-3-trombones.xml" },
+      { "title": "We're Going To Be Friends (3 Trombones)", "file": "scores/were-going-to-be-friends-3-trombones.xml" }
     ]
   }
 ]
