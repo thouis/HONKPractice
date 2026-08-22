@@ -65,7 +65,7 @@ function makeFourBeatOsmd() {
       get iterator() {
         return {
           get EndReached()          { return step >= 4 },
-          CurrentSourceTimestamp:   { RealValue: step * 0.25 },
+          CurrentEnrolledTimestamp: { RealValue: step * 0.25 },
           CurrentMeasureIndex:      0,
         }
       },

@@ -58,19 +58,15 @@ export function buildTimeline(osmd: import('opensheetmusicdisplay').OpenSheetMus
   let idx = 0
   let prevFraction = -1
   while (!osmd.cursor.iterator.EndReached) {
-    const ts: any = osmd.cursor.iterator.CurrentSourceTimestamp
+    // CurrentEnrolledTimestamp is OSMD's "unrolled" playback position: it keeps
+    // advancing monotonically through repeat/jump instructions (D.C., D.S., :||),
+    // unlike CurrentSourceTimestamp which resets to the repeated section's raw
+    // position in the source score. Using it here means repeated sections are
+    // scheduled — and heard — every time the cursor revisits them.
+    const ts: any = osmd.cursor.iterator.CurrentEnrolledTimestamp
     // If timestamp is null the RealValue will be 0; treat those entries as
     // belonging to the previous timestamp so they don't pile up at t=0.
     const fractionStart: number = ts != null ? (ts.RealValue ?? 0) : prevFraction
-
-    // Skip positions the cursor revisits due to repeat signs — each measure
-    // is only scheduled once.  A backwards jump in fractionStart always means
-    // a repeat; forward-only scores never go backwards.
-    if (fractionStart < prevFraction - 1e-6) {
-      osmd.cursor.next()
-      idx++
-      continue
-    }
 
     const notes = osmd.cursor.NotesUnderCursor()
 

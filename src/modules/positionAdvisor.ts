@@ -196,7 +196,9 @@ function buildHintDiv(
       ?.parentMusicSystem?.Parent?.pageNumber ?? 1
   const svgRect = svgRects[pageNum - 1] ?? svgRects[0]
 
-  const baseX = absPos.x * scaleX + svgRect.left - containerRect.left
+  const noteheadCenterX = absPos.x
+    + ((gn.PositionAndShape.BorderLeft ?? 0) + (gn.PositionAndShape.BorderRight ?? 0)) / 2
+  const baseX = noteheadCenterX * scaleX + svgRect.left - containerRect.left
   const staffBottomY = (staffTopY + STAFF_HEIGHT) * scaleX
     + svgRect.top - containerRect.top + HINT_PADDING_PX + topOffset
 
@@ -364,7 +366,9 @@ export function computeAndRenderHints(
             ?.parentMusicSystem?.Parent?.pageNumber ?? 1
         const svgRect = svgRects[pageNum - 1] ?? svgRects[0]
 
-        const baseX = absPos.x * scaleX + svgRect.left - containerRect.left
+        const noteheadCenterX = absPos.x
+          + ((refGn.PositionAndShape.BorderLeft ?? 0) + (refGn.PositionAndShape.BorderRight ?? 0)) / 2
+        const baseX = noteheadCenterX * scaleX + svgRect.left - containerRect.left
         const staffBottomY = (staffTopY + STAFF_HEIGHT) * scaleX
           + svgRect.top - containerRect.top + HINT_PADDING_PX
 

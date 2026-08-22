@@ -48,7 +48,7 @@ function makeMockOsmd() {
       get iterator() {
         return {
           get EndReached()          { return step >= 1 },
-          CurrentSourceTimestamp:   { RealValue: 0 },
+          CurrentEnrolledTimestamp: { RealValue: 0 },
           CurrentMeasureIndex:      0,
         }
       },
@@ -105,7 +105,7 @@ describe('play() seek-to-zero bug', () => {
         get iterator() {
           return {
             get EndReached()        { return step2 >= 2 },
-            CurrentSourceTimestamp: { RealValue: step2 * 0.25 },
+            CurrentEnrolledTimestamp: { RealValue: step2 * 0.25 },
             CurrentMeasureIndex:    0,
           }
         },
