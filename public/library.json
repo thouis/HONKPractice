@@ -41,6 +41,8 @@
     "group": "BABAM",
     "entries": [
       { "title": "Bella Ciao",                      "file": "scores/babam-bella-ciao.xml" },
+      { "title": "Bella Ciao (v2, duet)",            "file": "scores/babam-bella-ciao-v2.xml" },
+      { "title": "Bella Ciao Simple",                "file": "scores/babam-bella-ciao-simple.xml" },
       { "title": "I'm Shipping Up to Boston",      "file": "scores/babam-im-shipping-up-to-boston.xml" },
       { "title": "Chameleon (melody)",              "file": "scores/melody-chameleon.xml" },
       { "title": "Chameleon (bass)",                "file": "scores/bass-chameleon.xml" },
@@ -66,6 +68,23 @@
       { "title": "Watermelon Man (bass)",           "file": "scores/bass-watermelon_man.xml" },
       { "title": "We Got That Fire (melody)",       "file": "scores/melody-we_got_that_fire.xml" },
       { "title": "We Got That Fire (bass)",         "file": "scores/bass-we_got_that_fire.xml" }
+    ]
+  },
+  {
+    "group": "HonkPickup",
+    "entries": [
+      { "title": "Take the A Train",                "file": "scores/hp-a-train.xml" },
+      { "title": "Triumphant Elephant",              "file": "scores/hp-triumphant-elephant.xml" },
+      { "title": "Bourbon Street Parade",            "file": "scores/hp-bourbon-street-parade.xml" },
+      { "title": "I Like It Like That",              "file": "scores/hp-i-like-it-like-that.xml" },
+      { "title": "La Copa de la Vida",               "file": "scores/hp-la-copa-de-la-vida.xml" },
+      { "title": "La Copa de la Vida (Honkified)",   "file": "scores/hp-la-copa-de-la-vida-honkified.xml" },
+      { "title": "Ale Brider (melody)",              "file": "scores/hp-ale-brider-melody.xml" },
+      { "title": "Ale Brider (bass)",                "file": "scores/hp-ale-brider-bass.xml" },
+      { "title": "Blue Pepper (melody)",             "file": "scores/hp-blue-pepper-melody.xml" },
+      { "title": "Blue Pepper (bass)",               "file": "scores/hp-blue-pepper-bass.xml" },
+      { "title": "Bubamara (melody)",                "file": "scores/hp-bubamara-melody.xml" },
+      { "title": "Bubamara (bass)",                  "file": "scores/hp-bubamara-bass.xml" }
     ]
   },
   {
