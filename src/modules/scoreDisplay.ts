@@ -29,11 +29,52 @@ function parsePartClefs(xml: string): ('bass' | 'treble' | undefined)[] {
   })
 }
 
+// MusicXML lets a backward repeat barline specify a play count via
+// <repeat direction="backward" times="N"/>, but OSMD's engine ignores that
+// attribute entirely and always plays every repeat exactly twice. Parse it
+// ourselves (measure index → times) and apply it through the Repetition API
+// after load, so scores authored with a "Play Count" > 2 (e.g. set in
+// MuseScore's barline properties) actually repeat that many times.
+function parseRepeatCounts(xml: string): Map<number, number> {
+  const doc = new DOMParser().parseFromString(xml, 'application/xml')
+  const counts = new Map<number, number>()
+  for (const part of Array.from(doc.querySelectorAll('score-partwise > part'))) {
+    const measures = Array.from(part.querySelectorAll(':scope > measure'))
+    measures.forEach((measure, measureIndex) => {
+      for (const repeat of Array.from(measure.querySelectorAll('barline > repeat'))) {
+        if (repeat.getAttribute('direction') !== 'backward') continue
+        const times = parseInt(repeat.getAttribute('times') ?? '', 10)
+        if (!Number.isFinite(times) || times <= 2) continue
+        counts.set(measureIndex, Math.max(times, counts.get(measureIndex) ?? 0))
+      }
+    })
+  }
+  return counts
+}
+
+function applyRepeatCounts(counts: Map<number, number>): void {
+  if (counts.size === 0 || !osmdInstance) return
+  const sheet: any = (osmdInstance as any).Sheet
+  const repetitions: any[] = sheet?.Repetitions ?? []
+  let changed = false
+  for (const rep of repetitions) {
+    // Skip the virtual whole-piece "repetition" OSMD adds internally — it has
+    // no backward-jump instructions of its own, so EndIndex falls back to StartIndex.
+    if (!rep.BackwardJumpInstructions || rep.BackwardJumpInstructions.length === 0) continue
+    const times = counts.get(rep.EndIndex)
+    if (times === undefined) continue
+    rep.UserNumberOfRepetitions = times
+    changed = true
+  }
+  if (changed) sheet.MusicPartManager.reInit()
+}
+
 export async function loadOsmdScore(xml: string): Promise<void> {
   if (!osmdInstance) throw new Error('Display not initialized')
   partClefs = parsePartClefs(xml)
   await osmdInstance.load(xml)
   fixGlissandoStartNotes()
+  applyRepeatCounts(parseRepeatCounts(xml))
 }
 
 // OSMD 1.9.7 bug: addSlur() sets NoteGlissando only on the stop note, but the
