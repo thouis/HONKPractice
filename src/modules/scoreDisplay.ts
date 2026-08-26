@@ -74,7 +74,13 @@ export async function loadOsmdScore(xml: string): Promise<void> {
   partClefs = parsePartClefs(xml)
   await osmdInstance.load(xml)
   fixGlissandoStartNotes()
-  applyRepeatCounts(parseRepeatCounts(xml))
+  try {
+    applyRepeatCounts(parseRepeatCounts(xml))
+  } catch (e) {
+    // Don't let a repeat-count-parsing bug take down an otherwise-loadable score —
+    // worst case the piece just repeats the OSMD default of 2x instead of N.
+    console.error('applyRepeatCounts failed:', e)
+  }
 }
 
 // OSMD 1.9.7 bug: addSlur() sets NoteGlissando only on the stop note, but the

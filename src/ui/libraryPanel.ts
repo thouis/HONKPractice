@@ -197,6 +197,7 @@ async function refreshRemote(): Promise<void> {
           }
           await onLoad(xml, entry.title)
         } catch (e) {
+          console.error('Failed to load ' + entry.title + ':', e)
           notify('Failed to load ' + entry.title + ': ' + (e as Error).message, 'error')
         }
       }))

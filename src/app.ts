@@ -191,6 +191,7 @@ async function handleLoadScore(): Promise<void> {
     saveScore(xml)
   } catch (e) {
     if ((e as Error).message !== 'No file selected') {
+      console.error('Failed to load score:', e)
       notify('Failed to load score: ' + (e as Error).message, 'error')
     }
   }
