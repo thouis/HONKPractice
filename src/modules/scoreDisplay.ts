@@ -66,7 +66,19 @@ function applyRepeatCounts(counts: Map<number, number>): void {
     rep.UserNumberOfRepetitions = times
     changed = true
   }
-  if (changed) sheet.MusicPartManager.reInit()
+  if (changed) {
+    // OSMD bug: MusicPartManager.calcMapping() reads `this.timestamps.length` as soon as
+    // it hits the piece's first backward-repeat jump, but `timestamps` is only ever
+    // assigned at calcMapping()'s successful return — so a manager's very first
+    // init()/reInit() call throws "Cannot read properties of undefined (reading 'length')"
+    // whenever the earliest repeat comes early enough to be hit before that first run
+    // completes (e.g. a repeat in measure 3-4). sheet.MusicPartManager is a separate,
+    // not-yet-initialized manager from the one the cursor already uses, so this is
+    // reliably manager.reInit()'s first call. Pre-seed the field to dodge it.
+    const manager = sheet.MusicPartManager
+    if (manager.timestamps === undefined) manager.timestamps = []
+    manager.reInit()
+  }
 }
 
 export async function loadOsmdScore(xml: string): Promise<void> {
