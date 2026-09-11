@@ -46,6 +46,7 @@
       { "title": "Bella Ciao (v2, duet)",            "file": "scores/babam-bella-ciao-v2.xml" },
       { "title": "Bella Ciao Simple",                "file": "scores/babam-bella-ciao-simple.xml" },
       { "title": "I'm Shipping Up to Boston",      "file": "scores/babam-im-shipping-up-to-boston.xml" },
+      { "title": "Charlie on the MTA",              "file": "scores/babam-mta.xml" },
       { "title": "Chameleon (melody)",              "file": "scores/melody-chameleon.xml" },
       { "title": "Chameleon (bass)",                "file": "scores/bass-chameleon.xml" },
       { "title": "La Murga (melody)",               "file": "scores/melody-la_murga.xml" },
