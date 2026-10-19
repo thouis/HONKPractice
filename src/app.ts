@@ -12,6 +12,7 @@ import { initSampler, buildTimeline, play, pause, stop, setTempoRatio,
          setLoopEnabled, setLoopRestEnabled, setVoiceMode, setMusicVolume, setMusicMuted,
          getTimeline, seekToEvent, reschedule } from './modules/playback'
 import { initMetronome, setMetronomeEnabled, setMetronomeVolume } from './modules/metronome'
+import { matchPartCandidates } from './data/partMapping'
 import { computeAndRenderHints } from './modules/positionAdvisor'
 import { INSTRUMENTS, DEFAULT_INSTRUMENT } from './data/instruments/index'
 import type { InstrumentDef } from './types'
@@ -211,6 +212,9 @@ async function renderScore(xml: string, titleHint: string): Promise<void> {
   } else {
     currentPartIndices = null
     setPartButton(null)
+    const cands = parts[0] ? matchPartCandidates(parts[0].name, parts[0].clef) : []
+    const id = (cands.length === 1 ? cands[0] : cands.find(c => c.isDefault))?.instrumentId
+    if (id) applyInstrument(id)
   }
   setLyricsVisible(hintsMode === 0)
   renderOsmdScore()
